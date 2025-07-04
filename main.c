@@ -13,7 +13,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    for (int i = 1; i < argc; i++) {
+    int i;
+
+    for (i = 1; i < argc; i++) {
         snprintf(filename, MAX_FILENAME, "%s.as", argv[i]);
         fp = fopen(filename, "r");
         if (fp == NULL) {
