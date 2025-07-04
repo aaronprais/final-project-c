@@ -1,10 +1,6 @@
-cmake_minimum_required(VERSION 3.10)
-project(final-project-c)
+cmake_minimum_required(VERSION 3.31)
+project(final_project_c C)
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 90)
 
-# Add executable with both source files
-add_executable(final-project-c
-        main.c
-        logger.c
-)
+add_executable(final_project_c main.c logger.c)
