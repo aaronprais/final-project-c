@@ -1,0 +1,26 @@
+# ninja log v6
+4	1038	7733293773122485	build.ninja	39671e306cfa885a
+10	191	7733291713570469	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+4	159	7733291713519449	CMakeFiles/final-project-c.dir/main.c.obj	aa2caeea4d16f249
+191	450	7733291715380061	final-project-c.exe	8c7aa935ba1f0fa
+9	227	7733294874887475	final-project-c.exe	8c7aa935ba1f0fa
+7	218	7733296920724143	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+220	383	7733296922852333	final-project-c.exe	8c7aa935ba1f0fa
+6	132	7733297847093375	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+133	342	7733297848365665	final-project-c.exe	8c7aa935ba1f0fa
+5	118	7733298852602513	CMakeFiles/final-project-c.dir/main.c.obj	aa2caeea4d16f249
+14	139	7733298852687693	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+139	324	7733298853945436	final-project-c.exe	8c7aa935ba1f0fa
+6	121	7733299385423498	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+122	315	7733299386571539	final-project-c.exe	8c7aa935ba1f0fa
+5	111	7733299807131477	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+112	299	7733299808199021	final-project-c.exe	8c7aa935ba1f0fa
+9	644	7733301700576486	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+644	1360	7733301706930849	final-project-c.exe	8c7aa935ba1f0fa
+7	116	7733302774889236	CMakeFiles/final-project-c.dir/main.c.obj	aa2caeea4d16f249
+116	313	7733302775974353	final-project-c.exe	8c7aa935ba1f0fa
+7	156	7733307236148590	CMakeFiles/final-project-c.dir/main.c.obj	aa2caeea4d16f249
+16	160	7733307236239240	CMakeFiles/final-project-c.dir/logger.c.obj	426f8ee27b91c2fe
+160	337	7733307237671122	final-project-c.exe	8c7aa935ba1f0fa
+6	133	7733307849999502	CMakeFiles/final-project-c.dir/main.c.obj	aa2caeea4d16f249
+133	322	7733307851279643	final-project-c.exe	8c7aa935ba1f0fa
