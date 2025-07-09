@@ -4,7 +4,8 @@
 
 #define MAX_FILENAME 100
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     FILE *fp;
     char filename[MAX_FILENAME];
 
@@ -15,16 +16,17 @@ int main(int argc, char *argv[]) {
 
     int i;
 
-    for (i = 1; i < argc; i++) {
+    for (i = 1; i < argc; i++)
+    {
         snprintf(filename, MAX_FILENAME, "%s.as", argv[i]);
         fp = fopen(filename, "r");
-        if (fp == NULL) {
+        if (fp == NULL)
+        {
             fprintf(stderr, "Error: cannot open %s\n", filename);
             continue; // process next file
         }
 
         printf("Processing file: %s\n", filename);
-        
         fclose(fp);
     }
 
