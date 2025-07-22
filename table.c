@@ -57,53 +57,12 @@ void add_row(Table *tbl, const char *label, CommandType cmd, int is_cmd_line, co
 }
 
 // Edit an existing row by index
-void edit_row(Table *tbl, int index, const char *label, CommandType cmd, int is_cmd_line, const char *operands, unsigned int binary_code) {
+void edit_row_binary_code(Table *tbl, int index, unsigned int binary_code) {
     if (index < ZERO || index >= tbl->size) {
         printf("Invalid row index %d\n", index);
         return;
     }
-
-    strncpy(tbl->data[index].label, label, MAX_LABEL_LEN);
-    tbl->data[index].label[LABEL_NULL_CHAR_LOCATION] = NULL_CHAR;
-
-    tbl->data[index].decimal_address = ZERO;
-    tbl->data[index].command = cmd;
-    tbl->data[index].is_command_line = is_cmd_line;
-
-    strncpy(tbl->data[index].operands_string, operands, MAX_OPERAND_LEN);
-    tbl->data[index].operands_string[OPERAND_NULL_CHAR_LOCATION] = NULL_CHAR;
-
     tbl->data[index].binary_machine_code = binary_code;
-}
-
-// Insert a new row at a specific index
-void insert_row(Table *tbl, int index, const char *label, CommandType cmd, int is_cmd_line, const char *operands, unsigned int binary_code) {
-    if (index < ZERO || index > tbl->size) {
-        printf("Invalid insert position %d\n", index);
-        return;
-    }
-
-    ensure_capacity(tbl);
-
-    int i;
-
-    for (i = tbl->size; i > index; i--) {
-        tbl->data[i] = tbl->data[i - ONE];
-    }
-
-    strncpy(tbl->data[index].label, label, MAX_LABEL_LEN);
-    tbl->data[index].label[LABEL_NULL_CHAR_LOCATION] = NULL_CHAR;
-
-    tbl->data[index].decimal_address = ZERO;
-    tbl->data[index].command = cmd;
-    tbl->data[index].is_command_line = is_cmd_line;
-
-    strncpy(tbl->data[index].operands_string, operands, MAX_OPERAND_LEN);
-    tbl->data[index].operands_string[OPERAND_NULL_CHAR_LOCATION] = NULL_CHAR;
-
-    tbl->data[index].binary_machine_code = binary_code;
-
-    tbl->size++;
 }
 
 // Get pointer to a row by index
