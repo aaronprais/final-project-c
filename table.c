@@ -3,6 +3,7 @@
 #include <string.h>
 #include "table.h"
 #include "util.h"
+#include <ctype.h>
 
 // Initialize a new table
 Table* create_table() {
@@ -40,6 +41,20 @@ void ensure_capacity(Table *tbl) {
 
 // Add a new row
 void add_row(Table *tbl, const char *label, CommandType cmd, int is_cmd_line, const char *operands, unsigned int binary_code) {
+
+    char opbuf[MAX_OPERAND_LEN];
+    strncpy(opbuf, operands, MAX_OPERAND_LEN - 1);
+    opbuf[MAX_OPERAND_LEN - 1] = NULL_CHAR;
+
+    // trim leading spaces
+    char *op = opbuf;
+    while (isspace((unsigned char)*op)) op++;
+
+    // trim trailing spaces
+    char *end = op + strlen(op) - ONE;
+    while (end > op && isspace((unsigned char)*end)) *end-- = NULL_CHAR;
+    *(end + ONE) = NULL_CHAR;
+
     ensure_capacity(tbl);
     strncpy(tbl->data[tbl->size].label, label, MAX_LABEL_LEN);
     tbl->data[tbl->size].label[LABEL_NULL_CHAR_LOCATION] = NULL_CHAR;
@@ -48,7 +63,7 @@ void add_row(Table *tbl, const char *label, CommandType cmd, int is_cmd_line, co
     tbl->data[tbl->size].command = cmd;
     tbl->data[tbl->size].is_command_line = is_cmd_line;
 
-    strncpy(tbl->data[tbl->size].operands_string, operands, MAX_OPERAND_LEN);
+    strncpy(tbl->data[tbl->size].operands_string, op, MAX_OPERAND_LEN);
     tbl->data[tbl->size].operands_string[OPERAND_NULL_CHAR_LOCATION] = NULL_CHAR;
 
     tbl->data[tbl->size].binary_machine_code = binary_code;

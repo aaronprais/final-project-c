@@ -3,4 +3,13 @@ project(final_project_c C)
 
 set(CMAKE_C_STANDARD 90)
 
-add_executable(final_project_c main.c logger.c)
+add_executable(final_project_c main.c
+        table.c
+        table.h
+        ordering_into_table.c
+        ordering_into_table.h
+        labels.c
+        labels.h
+        util.c
+        util.h
+)
