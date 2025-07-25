@@ -6,7 +6,7 @@
 			[
 				{
 					"build" : ".",
-					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
 					"minimumCMakeVersion" : 
 					{
 						"string" : "3.31"
@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "final_project_c::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-final_project_c-Debug-5d61b2f0252c0c77a597.json",
+					"jsonFile" : "target-final_project_c-Debug-2485c62c847573e8bd25.json",
 					"name" : "final_project_c",
 					"projectIndex" : 0
 				}
@@ -49,8 +49,8 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "C:/Users/prais/final-project-c/cmake-build-debug",
-		"source" : "C:/Users/prais/final-project-c"
+		"build" : "/Users/shaharaviram/Documents/\u05de\u05d3\u05e2\u05d9 \u05d4\u05de\u05d7\u05e9\u05d1/\u05e7\u05d5\u05e8\u05e1\u05d9\u05dd/\u05de\u05e2\u05d1\u05d3\u05d4/final-project-c/cmake-build-debug",
+		"source" : "/Users/shaharaviram/Documents/\u05de\u05d3\u05e2\u05d9 \u05d4\u05de\u05d7\u05e9\u05d1/\u05e7\u05d5\u05e8\u05e1\u05d9\u05dd/\u05de\u05e2\u05d1\u05d3\u05d4/final-project-c"
 	},
 	"version" : 
 	{
