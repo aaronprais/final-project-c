@@ -7,9 +7,16 @@
 #define TWO 2
 #define THREE 3
 #define FOUR 4
+#define FIVE 5
+#define SIX 6
+#define SEVEN 7
+#define EIGHT 8
+#define NINE 9
+#define TEN 10
 
 #define NULL_CHAR '\0'
 #define NEW_LINE_STRING "\n"
+#define NEWLINE_CHAR '\n'
 #define SPACE_CHAR ' '
 #define EMPTY_STRING ""
 
@@ -28,7 +35,8 @@
 #define COMMA_STRING ","
 #define SEMI_COLON_CHAR ':'
 
-#define MAX_LINE_LENGTH 81
+#define MAX_LINE_LENGTH 82
+#define MAX_FILENAME 100
 
 #define MAX_LABEL_LEN 30
 #define LABEL_NULL_CHAR_LOCATION (MAX_LABEL_LEN - 1)
@@ -38,6 +46,14 @@
 
 #define NUMBER_OF_COMMANDS 16
 #define NUMBER_OF_DATA_TYPES 3
+
+#define MACRO_KEYWORD "mcro"
+#define MACRO_END_KEYWORD "mcroend"
+#define MACRO_LEN 4
+#define MACRO_END_LEN 7
+#define DEFAULT_MACRO_CAPACITY 10
+#define INITIAL_LINE_CAPACITY 4
+#define GROWTH_FACTOR 2
 
 #define TRUE 1
 #define FALSE 0
