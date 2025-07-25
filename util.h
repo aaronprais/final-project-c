@@ -2,6 +2,7 @@
 #define UTIL_H
 
 #define ZERO 0
+#define ZERO_STRING "0"
 #define ONE 1
 #define TWO 2
 #define THREE 3
@@ -13,10 +14,14 @@
 #define NINE 9
 #define TEN 10
 
-
 #define NULL_CHAR '\0'
-#define SPACE_CHAR ' '
+#define NEW_LINE_STRING "\n"
 #define NEWLINE_CHAR '\n'
+#define SPACE_CHAR ' '
+#define EMPTY_STRING ""
+
+#define SQUARE_BRACKET_START_CHAR '['
+#define SQUARE_BRACKET_END_CHAR ']'
 
 #define SPLITTING_DELIM " ,\t\r\n"
 
@@ -24,16 +29,20 @@
 #define R_CHAR 'r'
 
 #define MINUS_CHAR '-'
+#define PLUS_CHAR '+'
 #define IMMEDIATE_CHAR '#'
 #define DOT_CHAR '.'
+#define COMMA_STRING ","
+#define SEMI_COLON_CHAR ':'
 
 #define MAX_LINE_LENGTH 82
-
-#define MAX_OPERAND_LEN 128
-#define OPERAND_NULL_CHAR_LOCATION (MAX_OPERAND_LEN - 1)
+#define MAX_FILENAME 100
 
 #define MAX_LABEL_LEN 30
 #define LABEL_NULL_CHAR_LOCATION (MAX_LABEL_LEN - 1)
+
+#define MAX_OPERAND_LEN (MAX_LINE_LENGTH - MAX_LABEL_LEN)
+#define OPERAND_NULL_CHAR_LOCATION (MAX_OPERAND_LEN - 1)
 
 #define NUMBER_OF_COMMANDS 16
 #define NUMBER_OF_DATA_TYPES 3
@@ -48,6 +57,18 @@
 
 #define TRUE 1
 #define FALSE 0
+#define NOT_FOUND -1
+
+#define ENTRY ".entry"
+#define EXTERN ".extern"
+
+// label type
+typedef enum {
+    UNKNOWN = 0,
+    DATA = 1,
+    CODE = 2,
+    EXT = 3
+}LabelTypes;
 
 // register numbers
 typedef enum {
@@ -148,9 +169,10 @@ typedef enum {
     RELOCATABLE = 2,
 } AddressingCharacteristic;
 
-int is_valid_number(const char *str);
+int find_command(char *word, char *label);
+int is_number(const char *s, double *out);
 int is_register(const char *op);
 int is_immediate(const char *op);
 int is_matrix(const char *op);
-int is_label(const char *op, const char *lab);
+// int is_valid_label(const char *op, const char *lab);
 #endif //UTIL_H

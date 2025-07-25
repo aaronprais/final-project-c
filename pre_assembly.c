@@ -9,24 +9,6 @@ Macro *macro_table = NULL;
 int macro_count = 0;
 int macro_capacity = 0;
 
-static void *checked_malloc(size_t size);
-static void *checked_realloc(void *ptr, size_t size);
-static void add_macro(Macro macro);
-static void trim_line(char *line);
-static int is_macro_start(const char *line);
-static int is_macro_end(const char *line);
-static char *safe_strdup(const char *s);
-static int add_line_to_macro(Macro *macro, const char *line);
-static int expand_macro_if_match(FILE *out, const char *line);
-static void write_normal_line(FILE *out, const char *line);
-static int is_reserved_macro_name(const char *name);
-static int is_macro_already_defined(const char *name);
-static void handle_macro_definition(char *line, int line_number, int *inside_macro, int *inside_an_invalid_macro, int *had_error, Macro *current_macro);
-static int is_line_too_long(const char *line);
-static void skip_until_macro_end(FILE *in, int *line_number);
-static int has_text_after_macroend(const char *line);
-
-
 // Allocates memory safely with error check
 static void *checked_malloc(size_t size)
 {
@@ -256,7 +238,7 @@ static void handle_macro_definition(char *line, int line_number, int *inside_mac
 // Checks if a line exceeds allowed length
 static int is_line_too_long(const char *line)
 {
-    return strlen(line) == MAX_LINE_LENGTH - 1 && line[MAX_LINE_LENGTH - 2] != '\n';
+    return strlen(line) == MAX_LINE_LENGTH - 1 && line[MAX_LINE_LENGTH - 2] != NEWLINE_CHAR;
 }
 // Skips input lines until 'mcroend' is found
 static void skip_until_macro_end(FILE *in, int *line_number)
@@ -276,7 +258,7 @@ static int has_text_after_macroend(const char *line)
     return *after != NULL_CHAR;
 }
 
-static void free_macro_table()
+void free_macro_table()
 {
     int i, j;
     for (i = 0; i < macro_count; i++)
@@ -373,3 +355,36 @@ int preprocess_file(FILE *in, FILE *out)
     free_macro_table();
     return had_error;
 }
+
+int run_pre_assembly(FILE *in, const char *base_filename)
+{
+    char output_filename[MAX_FILENAME];
+    snprintf(output_filename, MAX_FILENAME, "%s.am", base_filename);
+
+    FILE *out = fopen(output_filename, "w");
+    if (!out)
+    {
+        fprintf(stderr, "Error - cannot create output file: %s\n", output_filename);
+        return 1;
+    }
+
+    printf("Preprocessing file: %s.as\n", base_filename);
+
+    int had_error = preprocess_file(in, out);
+
+    if (had_error)
+    {
+        remove(output_filename);
+        printf("File '%s' was not created due to errors.\n", output_filename);
+    }
+    else
+    {
+        printf("File '%s' created successfully.\n", output_filename);
+    }
+
+    fclose(out);
+    free_macro_table();
+
+    return had_error;
+}
+
