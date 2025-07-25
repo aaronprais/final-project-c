@@ -30,7 +30,7 @@ void free_table(Table *tbl) {
 void ensure_capacity(Table *tbl) {
     if (tbl->size >= tbl->capacity) {
         tbl->capacity = tbl->capacity == ZERO ? FOUR : tbl->capacity * TWO;
-        row *new_data = realloc(tbl->data, tbl->capacity * sizeof(row));
+        Row *new_data = realloc(tbl->data, tbl->capacity * sizeof(Row));
         if (!new_data) {
             perror("Failed to realloc table");
             exit(EXIT_FAILURE);
@@ -81,7 +81,7 @@ void edit_row_binary_code(Table *tbl, int index, unsigned int binary_code) {
 }
 
 // Get pointer to a row by index
-row* get_row(Table *tbl, int index) {
+Row* get_row(Table *tbl, int index) {
     if (index < ZERO || index >= tbl->size) {
         printf("Invalid index %d\n", index);
         return NULL;
@@ -94,6 +94,13 @@ void reset_addresses(Table *tbl, unsigned int offset) {
     int i;
     for (i = ZERO; i < tbl->size; i++) {
         tbl->data[i].decimal_address = offset + i;
+    }
+}
+
+void print_binary_10bits(unsigned int value) {
+    int bit;
+    for (bit = 9; bit >= 0; bit--) {
+        putchar( (value & (1 << bit)) ? '1' : '0' );
     }
 }
 
@@ -113,8 +120,8 @@ void print_table(Table *tbl) {
             printf(" --");
         }
 
-        printf(" | %-27s | %010u\n",
-               tbl->data[i].operands_string,
-               tbl->data[i].binary_machine_code);
+        printf(" | %-27s | ", tbl->data[i].operands_string);
+        print_binary_10bits(tbl->data[i].binary_machine_code);
+        printf("\n");
     }
 }

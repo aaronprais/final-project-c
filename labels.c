@@ -30,7 +30,7 @@ void free_label_table(Labels *lbls) {
 void ensure_label_capacity(Labels *lbls) {
     if (lbls->size >= lbls->capacity) {
         lbls->capacity = lbls->capacity == ZERO ? FOUR : lbls->capacity * TWO;
-        label *new_data = realloc(lbls->data, lbls->capacity * sizeof(label));
+        Label *new_data = realloc(lbls->data, lbls->capacity * sizeof(Label));
         if (!new_data) {
             perror("Failed to realloc labels table");
             exit(EXIT_FAILURE);
@@ -78,7 +78,7 @@ void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTy
 }
 
 // Get pointer to a label by label
-label* get_label(Labels *lbls, int index) {
+Label* get_label(Labels *lbls, int index) {
     if (index < ZERO || index >= lbls->size) {
         printf("Invalid index %d\n", index);
         return NULL;

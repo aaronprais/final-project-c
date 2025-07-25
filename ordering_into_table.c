@@ -28,7 +28,7 @@ void split_matrix_name_and_location(const char *input, char *name, char *rest, s
     }
 }
 
-void add_operand(Table *tbl, char *operand) {
+void add_operand(Table *tbl, char *operand, int command) {
 
     if (strcmp(operand, EMPTY_STRING) == 0) {
         add_row(tbl, EMPTY_STRING,ZERO,ZERO, ZERO_STRING,ZERO);
@@ -48,13 +48,13 @@ void add_operand(Table *tbl, char *operand) {
         split_matrix_name_and_location(operand, matrix_name, index_pair, MAX_OPERAND_LEN);
 
         // First row: matrix name
-        add_row(tbl, EMPTY_STRING,ZERO,ZERO, matrix_name,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, matrix_name,ZERO);
 
         // Second row: both registers in one string like "[r2],[r3]"
-        add_row(tbl, EMPTY_STRING,ZERO,ZERO, index_pair,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, index_pair,ZERO);
     } else {
         // Just one operand
-        add_row(tbl, EMPTY_STRING,ZERO,ZERO, operand,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, operand,ZERO);
     }
 }
 
@@ -98,11 +98,11 @@ void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, ch
             return;
         }
         // If one operand command
-        add_operand(tbl, operand1); // even if NULL, your add_operand should handle it
+        add_operand(tbl, operand1, command); // even if NULL, your add_operand should handle it
     }
     else if (expected == TWO) {
-        add_operand(tbl, operand1);
-        add_operand(tbl, operand2);
+        add_operand(tbl, operand1, command);
+        add_operand(tbl, operand2, command);
     }
 
 }
@@ -138,7 +138,7 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
                     first = FALSE;
                 }// Assuming add_row is defined
                 else {
-                    add_operand(tbl, c);
+                    add_operand(tbl, c, command);
                 }
             }
         }
@@ -157,7 +157,7 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
                     first = FALSE;
                 }
                 else {
-                    add_operand(tbl, operand);
+                    add_operand(tbl, operand, command);
                 }
                 operand = strtok(NULL,  COMMA_STRING);  // Get next operand
             }
@@ -168,7 +168,7 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
                     first = FALSE;
                 }
                 else {
-                    add_operand(tbl, EMPTY_STRING);
+                    add_operand(tbl, EMPTY_STRING, command);
                 }
             }
             count++;
@@ -191,7 +191,7 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
                 first = FALSE;
             }
             else {
-                add_operand(tbl, operand);
+                add_operand(tbl, operand, command);
             }
             operand = strtok(NULL, COMMA_STRING);
         }
