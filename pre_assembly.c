@@ -2,170 +2,374 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "logger.h"
+#include "pre_assembly.h"
+#include "util.h"
 
-#define MAX_LINE_LENGTH 82
-#define MAX_MACROS 100
-#define MAX_MACRO_LINES 50
-#define MAX_MACRO_NAME 31
-#define MAX_FILENAME 100
-#define MAX_LABEL_LENGTH 31
-
-typedef struct
-{
-    char name[MAX_MACRO_NAME];
-    char lines[MAX_MACRO_LINES][MAX_LINE_LENGTH];
-    int line_count;
-} Macro;
-
-Macro macro_table[MAX_MACROS];
+Macro *macro_table = NULL;
 int macro_count = 0;
+int macro_capacity = 0;
 
-int report_error_and_advance(const char *message, int line_number, int *has_errors)
+static void *checked_malloc(size_t size);
+static void *checked_realloc(void *ptr, size_t size);
+static void add_macro(Macro macro);
+static void trim_line(char *line);
+static int is_macro_start(const char *line);
+static int is_macro_end(const char *line);
+static char *safe_strdup(const char *s);
+static int add_line_to_macro(Macro *macro, const char *line);
+static int expand_macro_if_match(FILE *out, const char *line);
+static void write_normal_line(FILE *out, const char *line);
+static int is_reserved_macro_name(const char *name);
+static int is_macro_already_defined(const char *name);
+static void handle_macro_definition(char *line, int line_number, int *inside_macro, int *inside_an_invalid_macro, int *had_error, Macro *current_macro);
+static int is_line_too_long(const char *line);
+static void skip_until_macro_end(FILE *in, int *line_number);
+static int has_text_after_macroend(const char *line);
+
+
+// Allocates memory safely with error check
+static void *checked_malloc(size_t size)
 {
-    printf("Line %d: Error – %s\n", line_number, message);
-    (*has_errors)++;
-    return line_number + 1;
-}
-
-void normalize_and_validate_line(char *line, int line_number, int *has_errors)
-{
-    char cleaned[MAX_LINE_LENGTH];
-    int len = strlen(line);
-
-    while (len > 0 && isspace(line[len - 1]))
+    void *ptr = malloc(size);
+    if (!ptr)
     {
-        line[--len] = '\0';
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(1);
+    }
+    return ptr;
+}
+// Reallocates memory safely with error check
+static void *checked_realloc(void *ptr, size_t size)
+{
+    void *new_ptr = realloc(ptr, size);
+    if (!new_ptr)
+    {
+        fprintf(stderr, "Memory reallocation failed\n");
+        exit(1);
+    }
+    return new_ptr;
+}
+// Adds a macro to the macro table (deep copy)
+static void add_macro(Macro macro)
+{
+    if (macro_count >= macro_capacity)
+    {
+        macro_capacity = (macro_capacity == 0) ? DEFAULT_MACRO_CAPACITY : macro_capacity * GROWTH_FACTOR;
+        macro_table = checked_realloc(macro_table, macro_capacity * sizeof(Macro));
     }
 
-    int start = 0;
-    while (isspace(line[start]))
+    Macro copy;
+    strcpy(copy.name, macro.name);
+    copy.line_count = macro.line_count;
+    copy.capacity = macro.capacity;
+
+    copy.lines = checked_malloc(copy.capacity * sizeof(char *));
+    int i;
+    for (i = 0; i < copy.line_count; i++)
     {
+        copy.lines[i] = checked_malloc(strlen(macro.lines[i]) + 1);
+        strcpy(copy.lines[i], macro.lines[i]);
+    }
+
+    macro_table[macro_count++] = copy;
+}
+
+// Trims leading and trailing whitespace/newlines from a line
+static void trim_line(char *line)
+{
+    size_t len = strlen(line);
+    while (len > 0 && (line[len - 1] == '\r' || line[len - 1] == NEWLINE_CHAR))
+        line[--len] = NULL_CHAR;
+
+    char *start = line;
+    while (isspace((unsigned char)*start))
         start++;
-    }
 
-    if (start > 0)
-    {
-        memmove(line, line + start, strlen(line + start) + 1);
-    }
-
-    int i = 0, j = 0;
-    int in_word = 0;
-
-    while (line[i])
-        {
-        if (isspace(line[i]))
-        {
-            if (in_word)
-            {
-                cleaned[j++] = ' ';
-                in_word = 0;
-            }
-        }
-        else
-        {
-            if (j > 0 && !isspace(cleaned[j - 1]) && !in_word && isalnum(line[i]) && isalnum(cleaned[j - 1]))
-            {
-                char msg[100];
-                snprintf(msg, sizeof(msg), "missing space between words near '%c%c'", cleaned[j - 1], line[i]);
-                report_error_and_advance(msg, line_number, has_errors);
-            }
-            cleaned[j++] = line[i];
-            in_word = 1;
-        }
-        i++;
-    }
-
-    if (j > 0 && cleaned[j - 1] == ' ')
-        j--;
-    cleaned[j] = '\0';
-    strcpy(line, cleaned);
+    if (start != line)
+        memmove(line, start, strlen(start) + ONE);
 }
 
-int is_empty_or_comment(const char *line)
+// Checks if the line starts a macro definition
+static int is_macro_start(const char *line)
 {
-    while (*line && isspace(*line))
-    {
-        line++;
-    }
-
-    if (*line == '\0')
-    {
-        return 1;
-    }
-
-    if (*line == ';')
-    {
-        return 1;
-    }
-    return 0;
+    return strncmp(line, MACRO_KEYWORD, MACRO_LEN) == 0 && (line[MACRO_LEN] == NULL_CHAR || isspace(line[MACRO_LEN]));
 }
 
-void run_pre_assembler(FILE *in, FILE *out)
+// Checks if the line ends a macro definition
+static int is_macro_end(const char *line)
 {
+    return strncmp(line, MACRO_END_KEYWORD, MACRO_END_LEN) == 0 && (line[MACRO_END_LEN] == NULL_CHAR || isspace(line[MACRO_END_LEN]));
+}
+
+// Duplicates a string with safe allocation
+static char *safe_strdup(const char *s)
+{
+    char *copy = malloc(strlen(s) + 1);
+    if (!copy)
+    {
+        fprintf(stderr, "Memory allocation failed while duplicating string\n");
+        exit(1);
+    }
+    strcpy(copy, s);
+    return copy;
+}
+// Adds a line to the current macro definition
+static int add_line_to_macro(Macro *macro, const char *line)
+{
+    if (macro->line_count >= macro->capacity)
+    {
+        int new_capacity = (macro->capacity == 0) ? INITIAL_LINE_CAPACITY : macro->capacity * GROWTH_FACTOR;
+        char **new_lines = realloc(macro->lines, new_capacity * sizeof(char *));
+        if (!new_lines)
+        {
+            fprintf(stderr, "Memory allocation failed while expanding macro lines\n");
+            return TRUE;
+        }
+        macro->lines = new_lines;
+        macro->capacity = new_capacity;
+    }
+
+    macro->lines[macro->line_count++] = safe_strdup(line);
+    return FALSE;
+}
+
+// Expands macro if the line matches a macro name
+static int expand_macro_if_match(FILE *out, const char *line)
+{
+    char macro_candidate[MAX_LINE_LENGTH];
+    char extra[MAX_LINE_LENGTH];
+    int i, j;
+    int matched = sscanf(line, "%s %s", macro_candidate, extra);
+
+    for (i = 0; i < macro_count; ++i)
+    {
+        if (strcmp(macro_candidate, macro_table[i].name) == 0)
+        {
+            if (matched == 2)
+            {
+                printf("Error: unexpected text after macro invocation '%s'\n", macro_candidate);
+                return TRUE;
+            }
+            for (j = 0; j < macro_table[i].line_count; ++j)
+                fprintf(out, "%s\n", macro_table[i].lines[j]);
+
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+// Writes a normal line to output file, ensuring newline
+static void write_normal_line(FILE *out, const char *line)
+{
+    fprintf(out, "%s", line);
+    size_t len = strlen(line);
+    if (len == 0 || line[len - 1] != NEWLINE_CHAR)
+        fprintf(out, "%c", NEWLINE_CHAR);
+}
+
+// Checks if the name is a reserved command or directive
+static int is_reserved_macro_name(const char *name)
+{
+    int i;
+    for (i = 0; i < NUMBER_OF_COMMANDS + NUMBER_OF_DATA_TYPES; i++)
+    {
+        if (strcmp(name, command_names[i]) == 0)
+            return TRUE;
+    }
+    return FALSE;
+}
+// Checks if the macro name was already defined
+static int is_macro_already_defined(const char *name)
+{
+    int i;
+    for (i = 0; i < macro_count; i++)
+    {
+        if (strcmp(name, macro_table[i].name) == 0)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+// Validates and initializes a macro definition line
+static void handle_macro_definition(char *line, int line_number, int *inside_macro, int *inside_an_invalid_macro, int *had_error, Macro *current_macro)
+{
+    char name[MAX_LINE_LENGTH];
+    char extra[MAX_LINE_LENGTH];
+    int items_read;
+
+    *inside_macro = FALSE;
+    *inside_an_invalid_macro = TRUE;
+
+    if (strlen(line) <= MACRO_LEN)
+    {
+        printf("Line %d: Error – missing macro name\n", line_number);
+        *had_error = TRUE;
+        return;
+    }
+
+    items_read = sscanf(line + MACRO_LEN + 1, "%s %s", name, extra);
+
+    if (strlen(name) >= MAX_LINE_LENGTH)
+    {
+        printf("Line %d: Error – macro name too long (max %d chars)\n", line_number, MAX_LINE_LENGTH - 1);
+        *had_error = TRUE;
+        return;
+    }
+
+    if (items_read == 2)
+    {
+        printf("Line %d: Error – text after macro name is not allowed\n", line_number);
+        *had_error = TRUE;
+        return;
+    }
+
+    if (is_macro_already_defined(name))
+    {
+        printf("Line %d: Error – macro '%s' already defined\n", line_number, name);
+        *had_error = TRUE;
+        return;
+    }
+
+    if (is_reserved_macro_name(name))
+    {
+        printf("Line %d: Error – macro name '%s' is a reserved word\n", line_number, name);
+        *had_error = TRUE;
+        return;
+    }
+
+    strcpy(current_macro->name, name);
+    current_macro->capacity = 10;
+    current_macro->line_count = 0;
+    current_macro->lines = malloc(current_macro->capacity * sizeof(char *));
+    if (!current_macro->lines)
+    {
+        fprintf(stderr, "Memory allocation failed for macro lines\n");
+        *had_error = TRUE;
+        return;
+    }
+
+    *inside_macro = TRUE;
+    *inside_an_invalid_macro = FALSE;
+}
+
+// Checks if a line exceeds allowed length
+static int is_line_too_long(const char *line)
+{
+    return strlen(line) == MAX_LINE_LENGTH - 1 && line[MAX_LINE_LENGTH - 2] != '\n';
+}
+// Skips input lines until 'mcroend' is found
+static void skip_until_macro_end(FILE *in, int *line_number)
+{
+    char temp[MAX_LINE_LENGTH];
+    while (fgets(temp, MAX_LINE_LENGTH, in))
+    {
+        (*line_number)++;
+        if (is_macro_end(temp)) break;
+    }
+}
+// Checks if extra text exists after 'mcroend'
+static int has_text_after_macroend(const char *line)
+{
+    const char *after = line + strlen(MACRO_END_KEYWORD);
+    while (isspace((unsigned char)*after)) after++;
+    return *after != NULL_CHAR;
+}
+
+static void free_macro_table()
+{
+    int i, j;
+    for (i = 0; i < macro_count; i++)
+    {
+        for (j = 0; j < macro_table[i].line_count; j++)
+            free(macro_table[i].lines[j]);
+
+        free(macro_table[i].lines);
+    }
+    free(macro_table);
+    macro_table = NULL;
+    macro_count = 0;
+    macro_capacity = 0;
+}
+// Main preprocessing function for handling macro expansion
+int preprocess_file(FILE *in, FILE *out)
+{
+    int had_error = FALSE;
     char line[MAX_LINE_LENGTH];
-    int line_number = 1;
-    int has_errors = 0;
+    int inside_macro = FALSE;
+    int inside_an_invalid_macro = FALSE;
+    Macro current_macro;
+    int line_number = ONE;
 
     while (fgets(line, MAX_LINE_LENGTH, in))
     {
-        if (strlen(line) > 80)
+        if (is_line_too_long(line))
         {
-            line_number = report_error_and_advance("line too long (max 80 chars)", line_number, &has_errors);
-            continue;
-        }
-
-        normalize_and_validate_line(line, line_number, &has_errors);
-
-        if (is_empty_or_comment(line))
-        {
-            fprintf(out, "%s\n", line);
+            printf("Line %d: Error – line exceeds 80 characters\n", line_number);
+            had_error = TRUE;
+            inside_an_invalid_macro = TRUE;
+            int ch;
+            while ((ch = fgetc(in)) != NEWLINE_CHAR && ch != EOF);
             line_number++;
             continue;
         }
 
-        if (starts_with_macro(line))
+        trim_line(line);
+
+        if (inside_macro && is_macro_start(line))
         {
-            if (!handle_macro_definition(in, line))
-            {
-                printf("Line %d: Error in macro definition\n", line_number);
-                has_errors++;
-            }
+            printf("Line %d: Error – cannot define a macro inside another macro\n", line_number);
+            had_error = TRUE;
+            skip_until_macro_end(in, &line_number);
+            inside_macro = FALSE;
+            continue;
+        }
+
+        if (!inside_macro && !inside_an_invalid_macro && is_macro_end(line))
+        {
+            printf("Line %d: Error – 'mcroend' without matching 'mcro'\n", line_number);
+            had_error = TRUE;
             line_number++;
             continue;
         }
 
-        if (is_macro_name(line))
+        if (inside_macro)
         {
-            if (!expand_macro(line, out))
+            if (is_macro_end(line))
             {
-                printf("Line %d: Error expanding macro\n", line_number);
-                has_errors++;
-            }
-        }
-        else
-        {
-            if (!validate_line(line, line_number))
-            {
-                has_errors++;
+                if (has_text_after_macroend(line))
+                {
+                    printf("Line %d: Error – text after 'mcroend' is not allowed\n", line_number);
+                    had_error = TRUE;
+                }
+                add_macro(current_macro);
+                inside_macro = FALSE;
+                inside_an_invalid_macro = FALSE;
             }
             else
             {
-                fprintf(out, "%s\n", line);
+                if (add_line_to_macro(&current_macro, line))
+                    had_error = TRUE;
             }
+            line_number++;
+            continue;
         }
+
+        if (is_macro_start(line))
+        {
+            handle_macro_definition(line, line_number, &inside_macro, &inside_an_invalid_macro, &had_error, &current_macro);
+            line_number++;
+            continue;
+        }
+
+        if (expand_macro_if_match(out, line))
+        {
+            line_number++;
+            continue;
+        }
+        write_normal_line(out, line);
         line_number++;
     }
-
-    if (has_errors)
-    {
-        printf("\n❌ %d errors were found. Assembly process aborted.\n", has_errors);
-    }
+    free_macro_table();
+    return had_error;
 }
-
-
-
-
-
-
-
