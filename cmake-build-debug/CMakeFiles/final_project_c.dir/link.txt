@@ -1,1 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/cc -g -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/final_project_c.dir/main.c.o CMakeFiles/final_project_c.dir/logger.c.o CMakeFiles/final_project_c.dir/pre_assembly.c.o CMakeFiles/final_project_c.dir/util.c.o -o final_project_c

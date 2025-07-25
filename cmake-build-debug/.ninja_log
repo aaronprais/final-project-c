@@ -1,8 +1,0 @@
-# ninja log v6
-4	552	7733326091779725	build.ninja	65e4f8e6a8313b6c
-57	202	7733325089312690	CMakeFiles/final_project_c.dir/logger.c.obj	f2e2106d2c82329e
-44	151	7733325514210123	CMakeFiles/final_project_c.dir/main.c.obj	14d30f24b8a15eed
-152	275	7733325515299983	final_project_c.exe	5dd18ae9b1201a67
-8	143	7733326236424253	CMakeFiles/final_project_c.dir/main.c.obj	47ec446e010869e7
-16	150	7733326236510469	CMakeFiles/final_project_c.dir/logger.c.obj	3732a8636b1561ba
-151	281	7733326237844609	final_project_c.exe	5dd18ae9b1201a67

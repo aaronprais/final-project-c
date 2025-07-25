@@ -1,4 +1,0 @@
-/Applications/CLion.app/Contents/bin/cmake/mac/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "Unix Makefiles" -S "/Users/shaharaviram/Documents/מדעי המחשב/קורסים/מעבדה/final-project-c" -B "/Users/shaharaviram/Documents/מדעי המחשב/קורסים/מעבדה/final-project-c/cmake-build-debug"
--- Configuring done (0.1s)
--- Generating done (0.0s)
--- Build files have been written to: /Users/shaharaviram/Documents/מדעי המחשב/קורסים/מעבדה/final-project-c/cmake-build-debug

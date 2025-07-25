@@ -12,4 +12,6 @@ add_executable(final_project_c main.c
         labels.h
         util.c
         util.h
+        pre_assembly.c
+        pre_assembly.h
 )

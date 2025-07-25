@@ -1,89 +1,63 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "labels.h"
+#include "ordering_into_table.h"
+#include "table.h"
+#include "binary_table_parsing.h"
 #include "pre_assembly.h"
-#include "util.h"
 
-void free_macro_table()
-{
-    int j, k;
-    for (j = 0; j < macro_count; j++)
-    {
-        for (k = 0; k < macro_table[j].line_count; k++)
-        {
-            free(macro_table[j].lines[k]);
-        }
-        free(macro_table[j].lines);
-    }
-    free(macro_table);
-    macro_table = NULL;
-    macro_count = 0;
-    macro_capacity = 0;
-}
+#define MAX_FILENAME 100
 
-int main(int argc, char *argv[])
-{
-    if (argc < 2)
-    {
-        fprintf(stderr, "Usage: %s <file1> [file2] ...\n", argv[0]);
-        return TRUE;
+int main(int argc, char *argv[]) {
+    FILE *fp;
+    char filename[MAX_FILENAME];
+
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <file1> [file2] [file3] ...\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
     int i;
-    for (i = 1; i < argc; i++)
-    {
-        size_t len = strlen(argv[i]);
-        char *input_filename = malloc(len + strlen(".as") + 1);
-        char *output_filename = malloc(len + strlen(".am") + 1);
 
-        if (!input_filename || !output_filename)
-        {
-            fprintf(stderr, "Memory allocation failed.\n");
-            free(input_filename);
-            free(output_filename);
-            continue;
+    for (i = 1; i < argc; i++) {
+        snprintf(filename, MAX_FILENAME, "%s.as", argv[i]);
+        fp = fopen(filename, "r");
+        if (fp == NULL) {
+            fprintf(stderr, "Error: cannot open %s\n", filename);
+            continue; // process next file
         }
 
-        snprintf(input_filename, len + strlen(".as") + 1, "%s.as", argv[i]);
-        snprintf(output_filename, len + strlen(".am") + 1, "%s.am", argv[i]);
+        int failed = run_pre_assembly(fp, argv[i]);
 
-        FILE *in = fopen(input_filename, "r");
-        if (!in)
-        {
-            fprintf(stderr, "Error - cannot open input file: %s\n", input_filename);
-            free(input_filename);
-            free(output_filename);
-            continue;
+        if (failed) {
+            return EXIT_FAILURE;
         }
 
-        FILE *out = fopen(output_filename, "w");
-        if (!out)
-        {
-            fprintf(stderr, "Error - cannot create output file: %s\n", output_filename);
-            fclose(in);
-            free(input_filename);
-            free(output_filename);
-            continue;
+        snprintf(filename, MAX_FILENAME, "%s.am", argv[i]);
+        fp = fopen(filename, "r");
+        if (fp == NULL) {
+            fprintf(stderr, "Error: cannot open %s\n", filename);
+            continue; // process next file
         }
 
-        printf("Preprocessing file: %s\n", argv[i]);
-        int had_error = preprocess_file(in, out);
+        Table *tbl = create_table();
+        Labels *lbls = create_label_table();
 
-        if (had_error == TRUE)
-        {
-            remove(output_filename);
-            printf("File '%s' was not created due to errors.\n", output_filename);
-        }
-        else
-        {
-            printf("File '%s' created successfully.\n", output_filename);
-        }
 
-        fclose(in);
-        fclose(out);
-        free(input_filename);
-        free(output_filename);
-        free_macro_table();
+        process_file_to_table_and_labels(tbl, lbls, fp);
+        reset_addresses(tbl, 100);
+        reset_labels_addresses(lbls, 100);
+
+        print_table(tbl);
+        printf("------------------------------------------------------------------\n");
+        print_labels(lbls);
+        // printf("------------------------------------------------------------------\n");
+        // parse_table_to_binary(tbl, lbls);
+        // print_table(tbl);
+
+        fclose(fp);
     }
-    return FALSE;
+
+    return EXIT_SUCCESS;
 }
