@@ -97,7 +97,7 @@ int is_matrix(const char *op) {
     char *first_num_str = first_bracket + ONE;  // Skip the '['
 
     double first_value;
-    if (!is_number(first_num_str, &first_value)) {
+    if (!is_number(first_num_str, &first_value) && !is_register(first_num_str)) {
         return NOT_FOUND;
     }
 
@@ -114,7 +114,7 @@ int is_matrix(const char *op) {
     char *second_num_str = second_bracket + ONE;  // Skip the '['
 
     double second_value;
-    if (!is_number(second_num_str, &second_value)) {
+    if (!is_number(second_num_str, &second_value) && !is_register(second_num_str)) {
         return NOT_FOUND;
     }
 
@@ -123,7 +123,7 @@ int is_matrix(const char *op) {
         return (int)first_value * (int)second_value;
     }
 
-    return NOT_FOUND;
+    return ZERO;
 }
 
 // int is_valid_label(const char *op, const char *lab) {
