@@ -66,7 +66,20 @@ int is_number(const char *s, double *out) {
 }
 
 int is_register(const char *op) {
-    return strlen(op) == REGISTER_LEN && op[ZERO] == R_CHAR && op[ONE] >= R0 && op[ONE] <= R7;
+    char opbuf[MAX_OPERAND_LEN];
+    strncpy(opbuf, op, MAX_OPERAND_LEN - 1);
+    opbuf[MAX_OPERAND_LEN - 1] = NULL_CHAR;
+
+    // trim leading spaces
+    char *reg = opbuf;
+    while (isspace((unsigned char)*reg)) reg++;
+
+    // trim trailing spaces
+    char *end = reg + strlen(reg) - ONE;
+    while (end > reg && isspace((unsigned char)*end)) *end-- = NULL_CHAR;
+    *(end + ONE) = NULL_CHAR;
+
+    return strlen(reg) == REGISTER_LEN && reg[ZERO] == R_CHAR && reg[ONE] >= R0 && reg[ONE] <= R7;
 }
 
 int is_immediate(const char *op) {

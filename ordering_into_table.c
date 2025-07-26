@@ -101,8 +101,13 @@ void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, ch
         add_operand(tbl, operand1, command); // even if NULL, your add_operand should handle it
     }
     else if (expected == TWO) {
-        add_operand(tbl, operand1, command);
-        add_operand(tbl, operand2, command);
+        if (is_register(operand1) && is_register(operand2)) {
+            add_operand(tbl, operands_string, command);
+        }
+        else {
+            add_operand(tbl, operand1, command);
+            add_operand(tbl, operand2, command);
+        }
     }
 
 }
