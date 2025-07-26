@@ -1,0 +1,4 @@
+#ifndef FILE_FORMATING_H
+#define FILE_FORMATING_H
+
+#endif //FILE_FORMATING_H
