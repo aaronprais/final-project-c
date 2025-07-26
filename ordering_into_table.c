@@ -147,6 +147,7 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
                 }
             }
         }
+        add_operand(tbl, "", command);
     }
     else if (command == MAT) {
         int size = is_matrix(operands_string);
