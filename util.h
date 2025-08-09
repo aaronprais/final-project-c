@@ -174,5 +174,12 @@ int is_number(const char *s, double *out);
 int is_register(const char *op);
 int is_immediate(const char *op);
 int is_matrix(const char *op);
-// int is_valid_label(const char *op, const char *lab);
+
+/* Forward-declare Labels so we can reference it without including labels.h (to avoid cycles). */
+struct Labels;
+
+/* New: checks whether 'op' is the name of a label that exists in the labels table.
+   Returns TRUE if found, FALSE otherwise. */
+int is_valid_label(const char *op, const struct Labels *lbls);
+
 #endif //UTIL_H

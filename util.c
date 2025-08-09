@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <math.h>
 #include "util.h"
+#include "labels.h"
 
 int find_command(char *word, char *label) {
     int i;
@@ -89,7 +90,7 @@ int is_immediate(const char *op) {
     }
 
     // Check if the part after '#' is a valid number
-    return is_number(op++, NULL);
+    return is_number(op + 1, NULL);
 }
 
 int is_matrix(const char *op) {
@@ -139,6 +140,24 @@ int is_matrix(const char *op) {
     return ZERO;
 }
 
-// int is_valid_label(const char *op, const char *lab) {
-//     return FALSE;
-// }
+/* New util: check if operand text matches a defined label name in the labels table. */
+int is_valid_label(const char *op, const struct Labels *lbls) {
+    if (!op || !lbls) return FALSE;
+
+    /* Normalize the input name: trim whitespace and drop a trailing ':' if present */
+    char key[MAX_LABEL_LEN];
+    strncpy(key, op, MAX_LABEL_LEN - 1);
+    key[MAX_LABEL_LEN - 1] = NULL_CHAR;
+
+    char *start = key;
+    while (*start && isspace((unsigned char)*start)) start++;
+    char *end = start + strlen(start);
+    while (end > start && isspace((unsigned char)*(end-1))) end--;
+    *end = NULL_CHAR;
+    size_t len = strlen(start);
+    if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
+
+    /* Use helper from labels.c */
+    const Label *found = find_label_by_name((const Labels*)lbls, start);
+    return found ? TRUE : FALSE;
+}

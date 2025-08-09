@@ -58,7 +58,7 @@ void add_operand(Table *tbl, char *operand, int command) {
     }
 }
 
-void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, char *operands_string){
+int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, char *operands_string){
 
     // Preserve original operands_string before strtok modifies it
     char operands_copy[MAX_OPERAND_LEN];
@@ -75,8 +75,8 @@ void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, ch
         if (operand2 != NULL) {
             operand3 = strtok(NULL,  COMMA_STRING);
             if (operand3 != NULL) {
-                printf("Too Many Opperands");
-                return;
+                printf("Error: too Many Operands");
+                return FALSE;
             }
         }
     }
@@ -89,18 +89,22 @@ void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, ch
     int expected = command_operands[command];
 
     if (expected == ZERO && operand1 != NULL) {
-        printf("Too many operands, expected 0");
-        return;
+        printf("Error: too many operands, expected 0");
+        return FALSE;
     }
     if (expected == ONE) {
         if (operand2 != NULL) {
             printf("Error: too many operands. Expected 1, got more.\n");
-            return;
+            return FALSE;
         }
         // If one operand command
         add_operand(tbl, operand1, command); // even if NULL, your add_operand should handle it
     }
     else if (expected == TWO) {
+        if (operand2 == NULL) {
+            printf("Error: too little operands. Expected 2, got less.\n");
+            return FALSE;
+        }
         if (is_register(operand1) && is_register(operand2)) {
             add_operand(tbl, operands_string, command);
         }
@@ -110,9 +114,11 @@ void add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, ch
         }
     }
 
+    return TRUE;
+
 }
 
-void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *operands_string){
+int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *operands_string){
 
     // Preserve original operands_string before strtok modifies it
     char operands_copy[MAX_OPERAND_LEN];
@@ -182,7 +188,8 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
         if (operand != NULL) {
             operand = strtok(NULL,  COMMA_STRING);
             if (operand != NULL) {
-                printf("Too many values into table size");
+                printf("Error: too many values into table size");
+                return FALSE;
             }
         }
     }
@@ -202,11 +209,14 @@ void add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char 
             operand = strtok(NULL, COMMA_STRING);
         }
     }
+
+    return TRUE;
 }
 
 // Example signature: file pointer and array of labels with count
-void process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file) {
+int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file) {
     char line[MAX_LINE_LENGTH];
+    int error = FALSE;
 
     // Rewind file to start reading from beginning
     rewind(file);
@@ -238,7 +248,8 @@ void process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file) {
                 command = find_command(word, label);
 
                 if (command == NOT_FOUND) {
-                    printf("Command not recognised.\n");
+                    printf("Error: command not recognised.\n");
+                    error = TRUE;
                 }
                 else {
                     if (command < NUMBER_OF_COMMANDS) {
@@ -246,17 +257,24 @@ void process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file) {
                         if (rest != NULL) {
                             strcpy(operands_string, rest);
                         }
-                        add_command_to_table(tbl, lbls, label, command, operands_string);
+                        if (!add_command_to_table(tbl, lbls, label, command, operands_string)) {
+                            error = TRUE;
+                        }
                     }
                     else {
                         char *rest = strtok(NULL,  NEW_LINE_STRING);
                         if (rest != NULL) {
                             strcpy(operands_string, rest);
                         }
-                        add_data_to_table(tbl, lbls, label, command, operands_string);
+                        if (!add_data_to_table(tbl, lbls, label, command, operands_string)) {
+                            error = TRUE;
+                        }
+
                     }
                 }
             }
         }
     }
+
+    return error;
 }

@@ -15,7 +15,7 @@ static void *checked_malloc(size_t size)
     void *ptr = malloc(size);
     if (!ptr)
     {
-        fprintf(stderr, "Memory allocation failed\n");
+        printf("Memory allocation failed\n");
         exit(1);
     }
     return ptr;
@@ -26,7 +26,7 @@ static void *checked_realloc(void *ptr, size_t size)
     void *new_ptr = realloc(ptr, size);
     if (!new_ptr)
     {
-        fprintf(stderr, "Memory reallocation failed\n");
+        printf("Memory reallocation failed\n");
         exit(1);
     }
     return new_ptr;
@@ -89,7 +89,7 @@ static char *safe_strdup(const char *s)
     char *copy = malloc(strlen(s) + 1);
     if (!copy)
     {
-        fprintf(stderr, "Memory allocation failed while duplicating string\n");
+        printf("Memory allocation failed while duplicating string\n");
         exit(1);
     }
     strcpy(copy, s);
@@ -104,7 +104,7 @@ static int add_line_to_macro(Macro *macro, const char *line)
         char **new_lines = realloc(macro->lines, new_capacity * sizeof(char *));
         if (!new_lines)
         {
-            fprintf(stderr, "Memory allocation failed while expanding macro lines\n");
+            printf("Memory allocation failed while expanding macro lines\n");
             return TRUE;
         }
         macro->lines = new_lines;
@@ -226,7 +226,7 @@ static void handle_macro_definition(char *line, int line_number, int *inside_mac
     current_macro->lines = malloc(current_macro->capacity * sizeof(char *));
     if (!current_macro->lines)
     {
-        fprintf(stderr, "Memory allocation failed for macro lines\n");
+        printf("Memory allocation failed for macro lines\n");
         *had_error = TRUE;
         return;
     }
@@ -364,7 +364,7 @@ int run_pre_assembly(FILE *in, const char *base_filename)
     FILE *out = fopen(output_filename, "w");
     if (!out)
     {
-        fprintf(stderr, "Error - cannot create output file: %s\n", output_filename);
+        printf("Error - cannot create output file: %s\n", output_filename);
         return 1;
     }
 
