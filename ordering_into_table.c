@@ -28,7 +28,7 @@ void split_matrix_name_and_location(const char *input, char *name, char *rest, s
     }
 }
 
-void add_operand(Table *tbl, char *operand, int command) {
+void add_operand(Table *tbl, char *operand, int command, int operand_number) {
 
     if (strcmp(operand, EMPTY_STRING) == 0) {
         add_row(tbl, EMPTY_STRING,ZERO,ZERO, ZERO_STRING,ZERO);
@@ -48,13 +48,13 @@ void add_operand(Table *tbl, char *operand, int command) {
         split_matrix_name_and_location(operand, matrix_name, index_pair, MAX_OPERAND_LEN);
 
         // First row: matrix name
-        add_row(tbl, EMPTY_STRING,command,ZERO, matrix_name,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, matrix_name, operand_number);
 
         // Second row: both registers in one string like "[r2],[r3]"
-        add_row(tbl, EMPTY_STRING,command,ZERO, index_pair,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, index_pair, operand_number);
     } else {
         // Just one operand
-        add_row(tbl, EMPTY_STRING,command,ZERO, operand,ZERO);
+        add_row(tbl, EMPTY_STRING,command,ZERO, operand, operand_number);
     }
 }
 
@@ -98,7 +98,7 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, cha
             return FALSE;
         }
         // If one operand command
-        add_operand(tbl, operand1, command); // even if NULL, your add_operand should handle it
+        add_operand(tbl, operand1, command, 1); // even if NULL, your add_operand should handle it
     }
     else if (expected == TWO) {
         if (operand2 == NULL) {
@@ -106,11 +106,11 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command, cha
             return FALSE;
         }
         if (is_register(operand1) && is_register(operand2)) {
-            add_operand(tbl, operands_string, command);
+            add_operand(tbl, operands_string, command, 1);
         }
         else {
-            add_operand(tbl, operand1, command);
-            add_operand(tbl, operand2, command);
+            add_operand(tbl, operand1, command, 1);
+            add_operand(tbl, operand2, command, 2);
         }
     }
 
@@ -149,11 +149,11 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
                     first = FALSE;
                 }// Assuming add_row is defined
                 else {
-                    add_operand(tbl, c, command);
+                    add_operand(tbl, c, command, 0);
                 }
             }
         }
-        add_operand(tbl, "", command);
+        add_operand(tbl, "", command, 0);
     }
     else if (command == MAT) {
         int size = is_matrix(operands_string);
@@ -169,7 +169,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
                     first = FALSE;
                 }
                 else {
-                    add_operand(tbl, operand, command);
+                    add_operand(tbl, operand, command, 0);
                 }
                 operand = strtok(NULL,  COMMA_STRING);  // Get next operand
             }
@@ -180,7 +180,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
                     first = FALSE;
                 }
                 else {
-                    add_operand(tbl, EMPTY_STRING, command);
+                    add_operand(tbl, EMPTY_STRING, command, 0);
                 }
             }
             count++;
@@ -204,7 +204,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
                 first = FALSE;
             }
             else {
-                add_operand(tbl, operand, command);
+                add_operand(tbl, operand, command, 0);
             }
             operand = strtok(NULL, COMMA_STRING);
         }

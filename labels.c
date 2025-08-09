@@ -149,7 +149,7 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
         if (strcmp(lbls->data[i].label, start) == 0) {
             /* cast away const to match return type; callers should treat as read-only */
             return (Label*)&lbls->data[i];
-    }
+        }
     }
     return NULL;
 }

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "table.h"
+#include "labels.h"
 
 // convert base-4 digit to char
 static char digit_to_char(int d) {
@@ -57,6 +58,71 @@ void export_object_file(Table *tbl, const char *name) {
         to_base4_code(tbl->data[i].binary_machine_code, code_base4);
 
         fprintf(fp, "%s\t%s\n", addr_base4, code_base4);
+    }
+
+    fclose(fp);
+    printf("✅ Object file written to %s\n", filename);
+}
+
+void export_entry_file(Labels *lbls, const char *name) {
+    if (!lbls || !name) return;
+
+    char filename[FILENAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.ent", name);
+
+    FILE *fp = fopen(filename, "w");
+    if (!fp) {
+        perror("Failed to open output file");
+        return;
+    }
+
+    int i;
+    for (i = 0; i < lbls->size; i++) {
+
+        if (lbls->data[i].is_entry) {
+            char *current_label = lbls->data[i].label;
+
+            int j;
+            for (j = i + 1; j < lbls->size; j++) {
+                if (strcmp(lbls->data[j].label, current_label) == 0) {
+                    char addr_base4[5];
+                    to_base4_address(lbls->data[j].decimal_address, addr_base4);
+
+                    fprintf(fp, "%s\t%s\n", current_label, addr_base4);
+                }
+            }
+        }
+    }
+
+    fclose(fp);
+    printf("✅ Object file written to %s\n", filename);
+}
+
+void export_external_file(Table *tbl, Labels *lbls, const char *name) {
+    if (!lbls || !name || !tbl) return;
+
+    char filename[FILENAME_MAX];
+    snprintf(filename, sizeof(filename), "%s.ext", name);
+
+    FILE *fp = fopen(filename, "w");
+    if (!fp) {
+        perror("Failed to open output file");
+        return;
+    }
+
+    int i;
+    for (i = 0; i < tbl->size; i++) {
+
+        if (!tbl->data[i].is_command_line) {
+            Label *lbl = find_label_by_name(lbls, tbl->data[i].operands_string);
+
+            if (lbl && lbl->type == EXT) {
+                char addr_base4[5];
+                to_base4_address(tbl->data[i].decimal_address, addr_base4);
+
+                fprintf(fp, "%s\t%s\n", lbl->label, addr_base4);
+            }
+        }
     }
 
     fclose(fp);

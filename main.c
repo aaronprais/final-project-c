@@ -6,6 +6,7 @@
 #include "table.h"
 #include "binary_table_parsing.h"
 #include "pre_assembly.h"
+#include "file_formating.h"
 
 #define MAX_FILENAME 100
 
@@ -66,12 +67,16 @@ int main(int argc, char *argv[]) {
 
         /* ---------- Stage 3: translate table → binary using labels ---------- */
         if (!parse_table_to_binary(tbl, lbls)) {
-            fprintf(stderr, "Error: failed to translate table to binary for %s\n", argv[i]);
+            printf("Error: failed to translate table to binary for %s\n", argv[i]);
         } else {
             printf("------------------------------------------------------------------\n");
             printf("===== %s: TABLE AFTER BINARY ENCODING =====\n", argv[i]);
             print_table(tbl);
         }
+
+        export_object_file(tbl, argv[i]);
+        export_entry_file(lbls, argv[i]);
+        export_external_file(tbl, lbls, argv[i]);
 
         /* Cleanup per file (no globals) */
         free_table(tbl);
