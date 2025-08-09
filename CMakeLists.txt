@@ -14,4 +14,8 @@ add_executable(final_project_c main.c
         util.h
         pre_assembly.c
         pre_assembly.h
+        file_formating.c
+        file_formating.h
+        binary_table_parsing.c
+        binary_table_parsing.h
 )
