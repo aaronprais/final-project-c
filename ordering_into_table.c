@@ -165,7 +165,21 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
         while (count < size) {
             if (operand != NULL) {
                 if (first) {
-                    add_row(tbl, label, command, TRUE, operand, ZERO);
+                    char *first_str[MAX_OPERAND_LEN];
+                    int bracket_count = 0;
+                    char *ptr = operand;
+                    while (*ptr) {
+                        if (*ptr == ']') {
+                            bracket_count++;
+                            if (bracket_count == 2) {
+                                ptr++; // Move past the ']'
+                                strcpy(first_str, ptr);
+                                break;
+                            }
+                        }
+                        ptr++;
+                    }
+                    add_row(tbl, label, command, TRUE, first_str, ZERO);
                     first = FALSE;
                 }
                 else {
@@ -200,6 +214,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command, char *
         while (operand != NULL) {
 
             if (first) {
+
                 add_row(tbl, label, command,TRUE, operand, ZERO);
                 first = FALSE;
             }
