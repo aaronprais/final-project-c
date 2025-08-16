@@ -4,6 +4,6 @@
 #include "table.h"
 #include "labels.h"
 
-int parse_table_to_binary(Table *table, Labels *labels);
+int parse_table_to_binary(Table *table, Labels *labels, const char *src_filename);
 
 #endif //BINARY_TABLE_PARSING_H

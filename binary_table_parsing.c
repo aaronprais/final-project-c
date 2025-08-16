@@ -13,6 +13,10 @@
 #define R_ARE 0x2
 #define A_ARE 0x0
 
+static inline void error_at_row(const char *filename, const Row *row, const char *msg) {
+    print_error(filename, row ? (int)row->original_line_number : -1, msg);
+}
+
 // --- unchanged signature ---
 unsigned int encode_command_line(Row *row)
 {
@@ -44,7 +48,7 @@ unsigned int encode_command_line(Row *row)
     binary |= (row->command & 0xF) << 6;   // bits 6–9: opcode
     binary |= (src_mode  & 0x3) << 4;      // bits 4–5: src mode
     binary |= (dest_mode & 0x3) << 2;      // bits 2–3: dest mode
-    binary |= A_ARE;                        // bits 0–1: ARE=00 (Absolute) for first word
+    binary |= A_ARE;                       // bits 0–1: ARE=00 (Absolute) for first word
     return (binary & TEN_BIT_MASK);
 }
 
@@ -63,62 +67,79 @@ static inline unsigned int encode_matrix_regs(const char *regstr) {
     return 0; // invalid pattern
 }
 
-// main function you asked for
-int encode_operand_row(Row *row, Labels *labels)
+// main function updated to report errors with filename + original line
+int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
 {
     if (!row) return FALSE;
 
-    // we expect the operand text for THIS extra word in row->operands_string
     const char *operand = row->operands_string;
-    if (!operand || !*operand) return FALSE;
+    if (!operand || !*operand) {
+        error_at_row(src_filename, row, "Missing operand text for encoding");
+        return FALSE;
+    }
 
     // 1) Two-register special form: "rX, rY" (spaces optional)
-    //    Packs rX -> bits 6–9, rY -> bits 2–5, ARE=00
     {
         int r1 = -1, r2 = -1;
-        // allow spaces: "r1, r2" / "r1,r2"
-        // (two scans to be tolerant of formats)
         if (sscanf(operand, " r%d , r%d ", &r1, &r2) == 2 ||
-            sscanf(operand, " r%d ,%d ", &r1, &r2) == 2 ||
-            sscanf(operand, " r%d,%d ", &r1, &r2) == 2) {
+            sscanf(operand, " r%d ,%d ",  &r1, &r2) == 2 ||
+            sscanf(operand, " r%d,%d ",   &r1, &r2) == 2) {
             if (r1 >= 0 && r1 <= 15 && r2 >= 0 && r2 <= 15) {
                 unsigned int word = ((r1 & 0xF) << 6) | ((r2 & 0xF) << 2) | A_ARE;
                 row->binary_machine_code = (word & TEN_BIT_MASK);
                 return TRUE;
             }
+            error_at_row(src_filename, row, "Register index out of range in two-register operand");
             return FALSE;
         }
     }
 
     // 2) Matrix operand (this encodes the REGISTERS word from something like "M1[r2][r7]")
     if (is_matrix(operand) != NOT_FOUND) {
-        unsigned int regs_word = encode_matrix_regs(strchr(operand, '[')); // from first '['
-        if (!regs_word) return FALSE;
+        const char *br = strchr(operand, '[');
+        if (!br) {
+            error_at_row(src_filename, row, "Matrix operand missing register brackets");
+            return FALSE;
+        }
+        unsigned int regs_word = encode_matrix_regs(br);
+        if (!regs_word) {
+            error_at_row(src_filename, row, "Invalid matrix register pattern; expected [rX][rY]");
+            return FALSE;
+        }
         row->binary_machine_code = regs_word & TEN_BIT_MASK;
         return TRUE;
     }
 
-    // 3) Immediate: "#value" -> payload in bits 2–9, ARE=00
+    // 3) Immediate: "#value"
     if (operand[0] == IMMEDIATE_CHAR) {
-        int v = atoi(&operand[1]);        // after '#'
-        if (v < 0) v = (1 << 8) + (v & 0xFF);  // clamp to 8-bit two's complement
-        row->binary_machine_code = pack_payload_with_are((unsigned int)v, A_ARE) & TEN_BIT_MASK;
-        return TRUE;
+        char *endp = NULL;
+        long v = strtol(&operand[1], &endp, 10);
+        if (&operand[1] == endp) {
+            error_at_row(src_filename, row, "Invalid immediate literal after '#'");
+            return FALSE;
         }
+        // store low 8 bits in payload
+        unsigned int payload = (unsigned int)(v & 0xFF);
+        row->binary_machine_code = pack_payload_with_are(payload, A_ARE) & TEN_BIT_MASK;
+        return TRUE;
+    }
 
-    // 4) Single register: use row->binary_machine_code (preexisting) as ROLE HINT
-    //    1 => source (bits 6–9), 2 => dest (bits 2–5)
+    // 4) Single register with role hint in row->binary_machine_code (1=src, 2=dest)
     if (is_register(operand)) {
-        int reg = atoi(&operand[1]) & 0x7;  // 0..7
+        int regnum = atoi(&operand[1]);
+        if (regnum < 0 || regnum > 7) {
+            error_at_row(src_filename, row, "Register index out of range (expected r0..r7)");
+            return FALSE;
+        }
         unsigned int role_hint = row->binary_machine_code; // caller puts 1 or 2 here beforehand
         unsigned int word = 0;
 
         if (role_hint == 1) {          // source
-            word = (reg << 6) | A_ARE;
+            word = ((unsigned int)regnum << 6) | A_ARE;
         } else if (role_hint == 2) {   // dest
-            word = (reg << 2) | A_ARE;
+            word = ((unsigned int)regnum << 2) | A_ARE;
         } else {
-            // no role info; cannot place the 3 bits in the correct 4-bit slot
+            error_at_row(src_filename, row, "Missing role hint for single-register operand");
             return FALSE;
         }
 
@@ -126,11 +147,11 @@ int encode_operand_row(Row *row, Labels *labels)
         return TRUE;
     }
 
-    // 5) Label (direct addressing): address goes to bits 2–9; ARE=10 (reloc) or 01 (ext)
+    // 5) Label (direct addressing): address -> bits 2–9; ARE=10 (reloc) or 01 (ext)
     {
         Label *lbl = find_label_by_name(labels, operand);
         if (!lbl) {
-            printf("Error: label doesn't exist");
+            error_at_row(src_filename, row, "Label not found");
             return FALSE;
         }
         if (lbl->type == EXT) {
@@ -145,11 +166,19 @@ int encode_operand_row(Row *row, Labels *labels)
     }
 }
 
-int encode_data_row(Row *row, Labels *labels)
+int encode_data_row(Row *row, Labels *labels, const char *src_filename)
 {
     (void)labels;
 
     if (row->command == STR) {
+        if (!row->operands_string) {
+            error_at_row(src_filename, row, ".string with empty payload");
+            return FALSE;
+        }
+        if (row->operands_string[0] == '\0') {
+            row->binary_machine_code = 0; // empty string, encode as zero
+            return TRUE;
+        }
         // NOTE: This only encodes the first character here; full .string expansion
         // should be handled by table expansion logic outside this function.
         row->binary_machine_code = ((unsigned char)row->operands_string[0]) & TEN_BIT_MASK;
@@ -159,12 +188,18 @@ int encode_data_row(Row *row, Labels *labels)
     if (row->command == DAT || row->command == MAT) {
         double val;
         if (is_number(row->operands_string, &val)) {
-            int iv = (int)val;
-            if (iv < 0) iv = (1 << 10) + iv; // 10-bit two's complement for data words
-            row->binary_machine_code = (unsigned int)(iv & TEN_BIT_MASK);
+            long iv = (long)val;
+            // 10-bit two's complement for data words
+            iv &= TEN_BIT_MASK;
+            row->binary_machine_code = (unsigned int)iv;
             return TRUE;
+        } else {
+            error_at_row(src_filename, row, "Invalid numeric literal in data directive");
+            return FALSE;
         }
     }
+
+    error_at_row(src_filename, row, "Unsupported data directive for encoding");
     return FALSE;
 }
 
@@ -178,10 +213,12 @@ void trim_spaces(char *str)
     if (start != str) memmove(str, start, strlen(start) + 1);
 }
 
-int parse_table_to_binary(Table *table, Labels *labels)
+int parse_table_to_binary(Table *table, Labels *labels, const char *src_filename)
 {
     int i;
-    for (i = 0; i < table->size; ) {
+    int had_error = FALSE;
+
+    for (i = 0; i < table->size; ++i) {
         Row *row = get_row(table, i);
 
         if (row->is_command_line && row->command < NUMBER_OF_COMMANDS) {
@@ -189,15 +226,19 @@ int parse_table_to_binary(Table *table, Labels *labels)
             row->binary_machine_code = encode_command_line(row);
         }
         else {
+            int ok = FALSE;
             if (row->command < NUMBER_OF_COMMANDS) {
-                encode_operand_row(row, labels);
+                ok = encode_operand_row(row, labels, src_filename);
             }
             else {
-                encode_data_row(row, labels);
+                ok = encode_data_row(row, labels, src_filename);
+            }
+            if (!ok) {
+                // ensure we record an error but continue to process the rest
+                had_error = TRUE;
             }
         }
-        i++;
     }
-    return TRUE;
-}
 
+    return had_error ? FALSE : TRUE;
+}

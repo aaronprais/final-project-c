@@ -174,6 +174,7 @@ int is_number(const char *s, double *out);
 int is_register(const char *op);
 int is_immediate(const char *op);
 int is_matrix(const char *op);
+void print_error(const char *filename, int line_number, const char *msg);
 
 /* Forward-declare Labels so we can reference it without including labels.h (to avoid cycles). */
 struct Labels;

@@ -161,3 +161,7 @@ int is_valid_label(const char *op, const struct Labels *lbls) {
     const Label *found = find_label_by_name((const Labels*)lbls, start);
     return found ? TRUE : FALSE;
 }
+
+void print_error(const char *filename, int line_number, const char *msg) {
+    fprintf(stdout, "Error: %s at line %d: %s\n", filename, line_number, msg);
+}

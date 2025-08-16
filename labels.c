@@ -10,7 +10,7 @@
 Labels* create_label_table() {
     Labels *lbls = malloc(sizeof(Labels));
     if (!lbls) {
-        perror("Failed to allocate labels table");
+        print_error("SYSTEM", -1, "Failed to allocate labels table (malloc)");
         exit(EXIT_FAILURE);
     }
     lbls->data = NULL;
@@ -28,10 +28,10 @@ void free_label_table(Labels *lbls) {
 
 void ensure_label_capacity(Labels *lbls) {
     if (lbls->size >= lbls->capacity) {
-        lbls->capacity = lbls->capacity == ZERO ? FOUR : lbls->capacity * TWO;
+        lbls->capacity = (lbls->capacity == ZERO) ? FOUR : lbls->capacity * TWO;
         Label *new_data = realloc(lbls->data, lbls->capacity * sizeof(Label));
         if (!new_data) {
-            perror("Failed to realloc labels table");
+            print_error("SYSTEM", -1, "Failed to reallocate labels table (realloc)");
             exit(EXIT_FAILURE);
         }
         lbls->data = new_data;
@@ -55,7 +55,7 @@ static void normalize_label_name(char *s) {
     }
 
     if (start != s) {
-        memmove(s, start, strlen(start)+1);
+        memmove(s, start, strlen(start) + 1);
     }
 }
 
@@ -68,13 +68,19 @@ void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTy
     label_copy[MAX_LABEL_LEN - 1] = NULL_CHAR;
     normalize_label_name(label_copy);
 
+    /* Length check after normalization (include offending label) */
     if (strlen(label_copy) > MAX_LABEL_LEN - 1) {
-        printf("Label Too Long");
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Label too long: \"%s\" (max %d)", label_copy, MAX_LABEL_LEN - 1);
+        print_error("SYSTEM", -1, msg);
         return;
     }
 
+    /* Must start with uppercase (include offending label) */
     if (label_copy[0] && !isupper((unsigned char)label_copy[0])) {
-        printf("Invalid Label");
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Invalid label (must start with uppercase): \"%s\"", label_copy);
+        print_error("SYSTEM", -1, msg);
         return;
     }
 
@@ -92,7 +98,9 @@ void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTy
 
 Label* get_label(Labels *lbls, int index) {
     if (index < ZERO || index >= lbls->size) {
-        printf("Invalid index %d\n", index);
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Invalid label index %d", index);
+        print_error("SYSTEM", -1, msg);
         return NULL;
     }
     return &lbls->data[index];
@@ -105,7 +113,6 @@ int is_label(char *word) {
 
 void reset_labels_addresses(Labels *lbls, unsigned int offset) {
     int i;
-
     for (i = ZERO; i < lbls->size; i++) {
         lbls->data[i].decimal_address = offset + lbls->data[i].table_row_index;
     }
@@ -134,6 +141,7 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
     char key[MAX_LABEL_LEN];
     strncpy(key, name, MAX_LABEL_LEN - 1);
     key[MAX_LABEL_LEN - 1] = NULL_CHAR;
+
     /* Normalize key: trim + strip trailing ':' */
     char *start = key;
     while (*start && isspace((unsigned char)*start)) start++;
@@ -144,7 +152,6 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
     if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
 
     int i;
-
     for (i = 0; i < lbls->size; i++) {
         if (strcmp(lbls->data[i].label, start) == 0) {
             /* cast away const to match return type; callers should treat as read-only */

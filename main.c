@@ -48,10 +48,12 @@ int main(int argc, char *argv[]) {
         Table *tbl = create_table();
         Labels *lbls = create_label_table();
 
-        failed = process_file_to_table_and_labels(tbl, lbls, fp);
+        failed = process_file_to_table_and_labels(tbl, lbls, fp, filename);
         fclose(fp);
         if (failed) {
             /* pre-assembly reported an error for this file; skip to next */
+            free_table(tbl);
+            free_label_table(lbls);
             continue;
         }
 
@@ -66,8 +68,11 @@ int main(int argc, char *argv[]) {
         print_labels(lbls);
 
         /* ---------- Stage 3: translate table → binary using labels ---------- */
-        if (!parse_table_to_binary(tbl, lbls)) {
+        if (!parse_table_to_binary(tbl, lbls, filename)) {
             printf("Error: failed to translate table to binary for %s\n", argv[i]);
+            free_table(tbl);
+            free_label_table(lbls);
+            continue;
         } else {
             printf("------------------------------------------------------------------\n");
             printf("===== %s: TABLE AFTER BINARY ENCODING =====\n", argv[i]);
