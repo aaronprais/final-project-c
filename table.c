@@ -163,12 +163,10 @@ void reset_addresses(Table *tbl, unsigned int offset) {
     unsigned int addr = offset;
     int i;
 
-for (i = 0; i < tbl->size; ++i) {
+    for (i = 0; i < tbl->size; ++i) {
         Row *r = &tbl->data[i];
         r->decimal_address = addr;
-        if (r->is_command_line) {
-            addr++;
-        }
+        addr++;
     }
 }
 

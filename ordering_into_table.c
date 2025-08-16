@@ -6,6 +6,23 @@
 #include "table.h"
 #include "labels.h"
 
+/* assumes find_label_by_name(...) is declared in labels.h:
+   Label* find_label_by_name(const Labels *lbls, const char *name); */
+
+/* Hard cap on number of rows (program lines) allowed in the table. */
+#ifndef MAX_TABLE_ROWS
+#define MAX_TABLE_ROWS 255
+#endif
+
+/* Helper: after any add_row, verify we didn't exceed the limit. */
+static int check_table_overflow(Table *tbl, const char *src_filename, int src_line) {
+    if (tbl && tbl->size > MAX_TABLE_ROWS) {
+        print_error(src_filename, src_line, "Program exceeds maximum of 255 lines");
+        return FALSE;
+    }
+    return TRUE;
+}
+
 void split_matrix_name_and_location(const char *input, char *name, char *rest, size_t max_len) {
     const char *bracket_pos = strchr(input, SQUARE_BRACKET_START_CHAR);
 
@@ -24,13 +41,16 @@ void split_matrix_name_and_location(const char *input, char *name, char *rest, s
     }
 }
 
-void add_operand(Table *tbl, char *operand, int command, int operand_number, unsigned int src_line_no) {
+/* Changed: return int (TRUE on success, FALSE on error) and accept src_filename */
+int add_operand(Table *tbl, char *operand, int command, int operand_number,
+                unsigned int src_line_no, const char *src_filename) {
     if (strcmp(operand, EMPTY_STRING) == 0) {
-        if (command==STR)
+        if (command == STR) {
             add_row(tbl, EMPTY_STRING, command, ZERO, "\0", ZERO, src_line_no);
-        else
+        } else {
             add_row(tbl, EMPTY_STRING, command, ZERO, ZERO_STRING, ZERO, src_line_no);
-        return;
+        }
+        return check_table_overflow(tbl, src_filename, (int)src_line_no);
     }
 
     /* trim leading/trailing whitespace in-place */
@@ -46,10 +66,16 @@ void add_operand(Table *tbl, char *operand, int command, int operand_number, uns
         split_matrix_name_and_location(operand, matrix_name, index_pair, MAX_OPERAND_LEN);
 
         add_row(tbl, EMPTY_STRING, command, ZERO, matrix_name, operand_number, src_line_no);
-        add_row(tbl, EMPTY_STRING, command, ZERO, index_pair,  operand_number, src_line_no);
+        if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
+
+        add_row(tbl, EMPTY_STRING, command, ZERO, index_pair, operand_number, src_line_no);
+        if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
     } else {
         add_row(tbl, EMPTY_STRING, command, ZERO, operand, operand_number, src_line_no);
+        if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
     }
+
+    return TRUE;
 }
 
 int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
@@ -74,11 +100,23 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         }
     }
 
-    if (strcmp(label, EMPTY_STRING) != 0)
+    if (strcmp(label, EMPTY_STRING) != 0) {
+        /* Only labels allowed to be reused is entry if the new lable is not an .entry */
+        Label *existing = find_label_by_name(lbls, label);
+        if (existing && !existing->is_entry) {
+            char msg[128];
+            /* exact phrasing requested: “lable alrady exists” */
+            snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", label);
+            print_error(src_filename, src_line, msg);
+            return FALSE;
+        }
+        /* If existing is .entry, we allow reuse here (code line is not .entry) */
         add_label_row(lbls, label, tbl->size, CODE, FALSE);
+    }
 
     /* master row for the command line (records original source line number) */
     add_row(tbl, label, command, ONE, operands_string, ZERO, (unsigned int)src_line);
+    if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
 
     int expected = command_operands[command];
 
@@ -97,7 +135,8 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
-        add_operand(tbl, operand1, command, 1, (unsigned int)src_line);
+        if (!add_operand(tbl, operand1, command, 1, (unsigned int)src_line, src_filename))
+            return FALSE;
     }
     else if (expected == TWO) {
         if (operand2 == NULL) {
@@ -109,10 +148,13 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         }
         if (is_register(operand1) && is_register(operand2)) {
             /* pack two registers into a single operand row */
-            add_operand(tbl, operands_string, command, 1, (unsigned int)src_line);
+            if (!add_operand(tbl, operands_string, command, 1, (unsigned int)src_line, src_filename))
+                return FALSE;
         } else {
-            add_operand(tbl, operand1, command, 1, (unsigned int)src_line);
-            add_operand(tbl, operand2, command, 2, (unsigned int)src_line);
+            if (!add_operand(tbl, operand1, command, 1, (unsigned int)src_line, src_filename))
+                return FALSE;
+            if (!add_operand(tbl, operand2, command, 2, (unsigned int)src_line, src_filename))
+                return FALSE;
         }
     }
 
@@ -125,8 +167,19 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
     strncpy(operands_copy, operands_string, MAX_OPERAND_LEN - 1);
     operands_copy[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
-    if (strcmp(label, EMPTY_STRING) != 0)
+    if (strcmp(label, EMPTY_STRING) != 0) {
+        /* Only labels allowed to be reused is entry if the new lable is not an .entry */
+        Label *existing = find_label_by_name(lbls, label);
+        if (existing && !existing->is_entry) {
+            char msg[128];
+            /* exact phrasing requested */
+            snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", label);
+            print_error(src_filename, src_line, msg);
+            return FALSE;
+        }
+        /* If existing is .entry, we allow reuse here (data directive is not .entry) */
         add_label_row(lbls, label, tbl->size, DATA, FALSE);
+    }
 
     int first = TRUE;
 
@@ -146,9 +199,11 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
                 char c[2] = {operands_copy[i], NULL_CHAR};
                 if (first) {
                     add_row(tbl, label, command, TRUE, c, ZERO, (unsigned int)src_line);
+                    if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
-                    add_operand(tbl, c, command, 0, (unsigned int)src_line);
+                    if (!add_operand(tbl, c, command, 0, (unsigned int)src_line, src_filename))
+                        return FALSE;
                 }
             }
         }
@@ -164,14 +219,15 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             return FALSE;
         }
         if (quote_count == 2 && !operands_copy[i - 2]) {
-            // special case: "" empty string
+            /* special case: "" empty string */
             print_error(src_filename, src_line,
                         "Empty string \"\" is not allowed");
             return FALSE;
         }
 
         /* terminating null byte of string */
-        add_operand(tbl, "", command, 0, (unsigned int)src_line);
+        if (!add_operand(tbl, "", command, 0, (unsigned int)src_line, src_filename))
+            return FALSE;
     }
     else if (command == MAT) {
         int size = is_matrix(operands_string);
@@ -198,17 +254,21 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
                         ptr++;
                     }
                     add_row(tbl, label, command, TRUE, first_str, ZERO, (unsigned int)src_line);
+                    if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
-                    add_operand(tbl, operand, command, 0, (unsigned int)src_line);
+                    if (!add_operand(tbl, operand, command, 0, (unsigned int)src_line, src_filename))
+                        return FALSE;
                 }
                 operand = strtok(NULL, COMMA_STRING);
             } else {
                 if (first) {
                     add_row(tbl, label, command, TRUE, operands_string, ZERO, (unsigned int)src_line);
+                    if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
-                    add_operand(tbl, EMPTY_STRING, command, 0, (unsigned int)src_line);
+                    if (!add_operand(tbl, EMPTY_STRING, command, 0, (unsigned int)src_line, src_filename))
+                        return FALSE;
                 }
             }
             count++;
@@ -230,9 +290,11 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
         while (operand != NULL) {
             if (first) {
                 add_row(tbl, label, command, TRUE, operand, ZERO, (unsigned int)src_line);
+                if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                 first = FALSE;
             } else {
-                add_operand(tbl, operand, command, 0, (unsigned int)src_line);
+                if (!add_operand(tbl, operand, command, 0, (unsigned int)src_line, src_filename))
+                    return FALSE;
             }
             operand = strtok(NULL, COMMA_STRING);
         }
@@ -256,11 +318,31 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
         if (word != NULL) {
             if (strcmp(word, ENTRY) == 0) {
                 char *rest = strtok(NULL, NEW_LINE_STRING);
-                add_label_row(lbls, rest, ZERO, UNKNOWN, TRUE);
+                Label *existing = find_label_by_name(lbls, rest);
+                /* Duplicate .entry is never allowed; also disallow if the name exists at all. */
+                if (existing) {
+                    char msg[128];
+                    /* exact phrasing requested */
+                    snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
+                    print_error(src_filename, src_line, msg);
+                    error = TRUE;
+                } else {
+                    add_label_row(lbls, rest, ZERO, UNKNOWN, TRUE);
+                }
             }
             else if (strcmp(word, EXTERN) == 0) {
                 char *rest = strtok(NULL, NEW_LINE_STRING);
-                add_label_row(lbls, rest, ZERO, EXT, FALSE);
+                Label *existing = find_label_by_name(lbls, rest);
+                /* Allow reuse only if existing is .entry and the new one is NOT .entry (extern). */
+                if (existing && !existing->is_entry) {
+                    char msg[128];
+                    /* exact phrasing requested */
+                    snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
+                    print_error(src_filename, src_line, msg);
+                    error = TRUE;
+                } else {
+                    add_label_row(lbls, rest, ZERO, EXT, FALSE);
+                }
             }
             else {
                 int command = NOT_FOUND;
@@ -299,6 +381,12 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                     }
                 }
             }
+        }
+
+        /* Early-out if we already overflowed to avoid cascading errors */
+        if (tbl->size > MAX_TABLE_ROWS) {
+            /* We already printed the specific overflow error at the point it happened. */
+            break;
         }
     }
 

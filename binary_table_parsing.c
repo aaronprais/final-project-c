@@ -27,14 +27,14 @@ unsigned int encode_command_line(Row *row)
     strncpy(operands_copy, row->operands_string, MAX_OPERAND_LEN - 1);
     operands_copy[MAX_OPERAND_LEN - 1] = '\0';
 
-    src = strtok(operands_copy, COMMA_STRING);
-    dest = strtok(NULL, COMMA_STRING);
+    src  = strtok(operands_copy, COMMA_STRING);
+    dest = strtok(NULL,        COMMA_STRING);
 
     if (src) {
         if (is_matrix(src) != NOT_FOUND)      src_mode = MATRIX_ACCESS_ADDRESSING;
         else if (src[0] == IMMEDIATE_CHAR)    src_mode = IMMEDIATE_ADDRESSING;
         else if (is_register(src))            src_mode = DIRECT_REGISTER_ADDRESSING;
-        else                                  src_mode = DIRECT_ADDRESSING;
+        else                                  src_mode = DIRECT_ADDRESSING;  // label/direct by default
     }
 
     if (dest) {
@@ -44,11 +44,18 @@ unsigned int encode_command_line(Row *row)
         else                                  dest_mode = DIRECT_ADDRESSING;
     }
 
+    /* --- special case: one operand that is a label (dest is NULL) ---
+       Requirement: put src mode = 0 and dest mode = DIRECT_ADDRESSING. */
+    if (src && !dest && src_mode == DIRECT_ADDRESSING) {
+        src_mode  = 0;                        // “no src” / 00
+        dest_mode = DIRECT_ADDRESSING;        // operand treated as dest
+    }
+
     unsigned int binary = 0;
-    binary |= (row->command & 0xF) << 6;   // bits 6–9: opcode
-    binary |= (src_mode  & 0x3) << 4;      // bits 4–5: src mode
-    binary |= (dest_mode & 0x3) << 2;      // bits 2–3: dest mode
-    binary |= A_ARE;                       // bits 0–1: ARE=00 (Absolute) for first word
+    binary |= (row->command & 0xF) << 6;      // bits 6–9: opcode
+    binary |= (src_mode  & 0x3) << 4;         // bits 4–5: src mode
+    binary |= (dest_mode & 0x3) << 2;         // bits 2–3: dest mode
+    binary |= A_ARE;                          // bits 0–1: ARE=00 (Absolute) for first word
     return (binary & TEN_BIT_MASK);
 }
 
