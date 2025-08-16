@@ -85,19 +85,17 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     strncpy(operands_copy, operands_string, MAX_OPERAND_LEN - 1);
     operands_copy[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
+    int comma_count = 0;
+    const char *p;
+    for (p = operands_copy; *p; p++) {
+        if (*p == ',') comma_count++;
+    }
+
     char *operand1 = strtok(operands_copy, COMMA_STRING);
     char *operand2 = NULL;
-    char *operand3 = NULL;
 
     if (operand1 != NULL) {
         operand2 = strtok(NULL, COMMA_STRING);
-        if (operand2 != NULL) {
-            operand3 = strtok(NULL, COMMA_STRING);
-            if (operand3 != NULL) {
-                print_error(src_filename, src_line, "Too many operands provided");
-                return FALSE;
-            }
-        }
     }
 
     if (strcmp(label, EMPTY_STRING) != 0) {
@@ -119,6 +117,11 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
 
     int expected = command_operands[command];
+
+    if ((expected > 0 && comma_count > expected - 1) || (expected == ZERO && comma_count > 0)) {
+        print_error(src_filename, src_line, "Unexpected extra comma");
+        return FALSE;
+    }
 
     if (expected == ZERO && operand1 != NULL) {
         char msg[128];

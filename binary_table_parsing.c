@@ -7,12 +7,6 @@
 #include "labels.h"
 #include "util.h"
 
-// --- fixes / helpers at top ---
-#define TEN_BIT_MASK 0x3FF
-#define E_ARE 0x1
-#define R_ARE 0x2
-#define A_ARE 0x0
-
 static inline void error_at_row(const char *filename, const Row *row, const char *msg) {
     print_error(filename, row ? (int)row->original_line_number : -1, msg);
 }
@@ -69,7 +63,7 @@ static inline unsigned int encode_matrix_regs(const char *regstr) {
     int r_row = -1, r_col = -1;
     if (sscanf(regstr, "[r%d][r%d]", &r_row, &r_col) == 2 &&
         r_row >= 0 && r_row <= 7 && r_col >= 0 && r_col <= 7) {
-        return ((r_col & 0x7) << 6) | ((r_row & 0x7) << 2) | A_ARE;
+        return ((r_row & 0x7) << 6) | ((r_col & 0x7) << 2) | A_ARE;
     }
     return 0; // invalid pattern
 }
