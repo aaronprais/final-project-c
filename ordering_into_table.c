@@ -122,6 +122,10 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         print_error(src_filename, src_line, "Unexpected extra comma");
         return FALSE;
     }
+    if (expected > 1 && comma_count < expected - 1) {
+        print_error(src_filename, src_line, "Missing comma");
+        return FALSE;
+    }
 
     if (expected == ZERO && operand1 != NULL) {
         char msg[128];
@@ -337,7 +341,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                 char *rest = strtok(NULL, NEW_LINE_STRING);
                 Label *existing = find_label_by_name(lbls, rest);
                 /* Allow reuse only if existing is .entry and the new one is NOT .entry (extern). */
-                if (existing && !existing->is_entry) {
+                if (existing) {
                     char msg[128];
                     /* exact phrasing requested */
                     snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");

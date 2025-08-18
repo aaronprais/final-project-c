@@ -83,16 +83,16 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
     {
         int r1 = -1, r2 = -1;
         if (sscanf(operand, " r%d , r%d ", &r1, &r2) == 2 ||
-            sscanf(operand, " r%d ,%d ",  &r1, &r2) == 2 ||
-            sscanf(operand, " r%d,%d ",   &r1, &r2) == 2) {
-            if (r1 >= 0 && r1 <= 15 && r2 >= 0 && r2 <= 15) {
+            sscanf(operand, " r%d ,r%d ",  &r1, &r2) == 2 ||
+            sscanf(operand, " r%d,r%d ",   &r1, &r2) == 2) {
+            if (r1 >= 0 && r1 <= 7 && r2 >= 0 && r2 <= 7) {
                 unsigned int word = ((r1 & 0xF) << 6) | ((r2 & 0xF) << 2) | A_ARE;
                 row->binary_machine_code = (word & TEN_BIT_MASK);
                 return TRUE;
             }
             error_at_row(src_filename, row, "Register index out of range in two-register operand");
             return FALSE;
-        }
+    }
     }
 
     // 2) Matrix operand (this encodes the REGISTERS word from something like "M1[r2][r7]")
@@ -112,15 +112,14 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
     }
 
     // 3) Immediate: "#value"
-    if (operand[0] == IMMEDIATE_CHAR) {
-        char *endp = NULL;
-        long v = strtol(&operand[1], &endp, 10);
-        if (&operand[1] == endp) {
-            error_at_row(src_filename, row, "Invalid immediate literal after '#'");
+    if (is_immediate(operand)) {
+        double val = 0.0;
+        if (!is_number(operand + 1, &val)) {
+            print_error(src_filename, (int)row->original_line_number,"Invalid immediate operand; expected # followed by a number");
             return FALSE;
         }
         // store low 8 bits in payload
-        unsigned int payload = (unsigned int)(v & 0xFF);
+        unsigned int payload = (unsigned int)((int)val & 0xFF);
         row->binary_machine_code = pack_payload_with_are(payload, A_ARE) & TEN_BIT_MASK;
         return TRUE;
     }

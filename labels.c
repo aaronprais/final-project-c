@@ -151,12 +151,14 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
     size_t len = strlen(start);
     if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
 
+    Label *temp = NULL;
+
     int i;
     for (i = 0; i < lbls->size; i++) {
         if (strcmp(lbls->data[i].label, start) == 0) {
             /* cast away const to match return type; callers should treat as read-only */
-            return (Label*)&lbls->data[i];
+            temp = (Label*)&lbls->data[i];
         }
     }
-    return NULL;
+    return temp;
 }

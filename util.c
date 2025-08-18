@@ -88,9 +88,7 @@ int is_immediate(const char *op) {
     if (op[0] != IMMEDIATE_CHAR) {
         return 0;
     }
-
-    // Check if the part after '#' is a valid number
-    return is_number(op + 1, NULL);
+    return 1;
 }
 
 int is_matrix(const char *op) {
