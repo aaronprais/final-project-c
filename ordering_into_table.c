@@ -14,7 +14,13 @@
 #define MAX_TABLE_ROWS 255
 #endif
 
-/* Helper: after any add_row, verify we didn't exceed the limit. */
+/*
+ * check_table_overflow
+ * --------------------
+ * After any add_row, we validate we didn't blow past MAX_TABLE_ROWS.
+ * Emits a nice error with filename + source line.
+ * returns TRUE if ok, FALSE if overflow.
+ */
 static int check_table_overflow(Table *tbl, const char *src_filename, int src_line) {
     if (tbl && tbl->size > MAX_TABLE_ROWS) {
         print_error(src_filename, src_line, "Program exceeds maximum of 255 lines");
@@ -23,61 +29,84 @@ static int check_table_overflow(Table *tbl, const char *src_filename, int src_li
     return TRUE;
 }
 
+/*
+ * split_matrix_name_and_location
+ * ------------------------------
+ * Given something like "M1[2][3]" it seperates:
+ *   name -> "M1"
+ *   rest -> "[2][3]"
+ * We try to be careful not to overflow fixed-size buffers.
+ */
 void split_matrix_name_and_location(const char *input, char *name, char *rest, size_t max_len) {
     const char *bracket_pos = strchr(input, SQUARE_BRACKET_START_CHAR);
 
     if (bracket_pos) {
         size_t name_len = (size_t)(bracket_pos - input);
-        if (name_len >= max_len) name_len = max_len - ONE; /* prevent overflow */
+        if (name_len >= max_len) name_len = max_len - 1; /* prevent overflow */
         strncpy(name, input, name_len);
         name[name_len] = NULL_CHAR;
 
-        strncpy(rest, bracket_pos, max_len - ONE);
-        rest[max_len - ONE] = NULL_CHAR;
+        strncpy(rest, bracket_pos, max_len - 1);
+        rest[max_len - 1] = NULL_CHAR;
     } else {
-        strncpy(name, input, max_len - ONE);
-        name[max_len - ONE] = NULL_CHAR;
-        rest[ZERO] = NULL_CHAR;
+        strncpy(name, input, max_len - 1);
+        name[max_len - 1] = NULL_CHAR;
+        rest[0] = NULL_CHAR;
     }
 }
 
-/* Changed: return int (TRUE on success, FALSE on error) and accept src_filename */
+/*
+ * add_operand
+ * -----------
+ * Normalizes an operand (trims whitespace), handles matrix/register packing etc,
+ * and appends the corresponding row(s) into the table.
+ * Note: returns TRUE on success, FALSE on any error (keeps behavior same).
+ */
 int add_operand(Table *tbl, char *operand, int command, int operand_number,
                 unsigned int src_line_no, const char *src_filename) {
     if (strcmp(operand, EMPTY_STRING) == 0) {
+        /* empty operand is valid for some directives (e.g. .string terminator) */
         if (command == STR) {
-            add_row(tbl, EMPTY_STRING, command, ZERO, "\0", ZERO, src_line_no);
+            add_row(tbl, EMPTY_STRING, command, 0, "\0", 0, src_line_no);
         } else {
-            add_row(tbl, EMPTY_STRING, command, ZERO, ZERO_STRING, ZERO, src_line_no);
+            add_row(tbl, EMPTY_STRING, command, 0, "0", 0, src_line_no);
         }
         return check_table_overflow(tbl, src_filename, (int)src_line_no);
     }
 
-    /* trim leading/trailing whitespace in-place */
+    /* trim leading/trailing whitespace in-place (classic c-string trick) */
     while (isspace((unsigned char)*operand)) operand++;
-    char *end = operand + strlen(operand) - ONE;
+    char *end = operand + strlen(operand) - 1;
     while (end > operand && isspace((unsigned char)*end)) *end-- = NULL_CHAR;
-    *(end + ONE) = NULL_CHAR;
+    *(end + 1) = NULL_CHAR;
 
+    /* matrix operand is split into 2 rows: name and index part(s) */
     if (is_matrix(operand) != NOT_FOUND) {
         char matrix_name[MAX_OPERAND_LEN];
         char index_pair[MAX_OPERAND_LEN];
 
         split_matrix_name_and_location(operand, matrix_name, index_pair, MAX_OPERAND_LEN);
 
-        add_row(tbl, EMPTY_STRING, command, ZERO, matrix_name, operand_number, src_line_no);
+        add_row(tbl, EMPTY_STRING, command, 0, matrix_name, operand_number, src_line_no);
         if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
 
-        add_row(tbl, EMPTY_STRING, command, ZERO, index_pair, operand_number, src_line_no);
+        add_row(tbl, EMPTY_STRING, command, 0, index_pair, operand_number, src_line_no);
         if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
     } else {
-        add_row(tbl, EMPTY_STRING, command, ZERO, operand, operand_number, src_line_no);
+        /* normal (non-matrix) operand */
+        add_row(tbl, EMPTY_STRING, command, 0, operand, operand_number, src_line_no);
         if (!check_table_overflow(tbl, src_filename, (int)src_line_no)) return FALSE;
     }
 
     return TRUE;
 }
 
+/*
+ * add_command_to_table
+ * --------------------
+ * Handles instruction-like lines (not data directives),
+ * validates the number of operands, and records packed registers when posible.
+ */
 int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
                          char *operands_string, int src_line, const char *src_filename) {
 
@@ -85,21 +114,23 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     strncpy(operands_copy, operands_string, MAX_OPERAND_LEN - 1);
     operands_copy[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
+    /* quick comma count to catch extra/missing commas later */
     int comma_count = 0;
     const char *p;
     for (p = operands_copy; *p; p++) {
         if (*p == ',') comma_count++;
     }
 
+    /* tokenize into up to 2 operands (fits ISA specs) */
     char *operand1 = strtok(operands_copy, COMMA_STRING);
     char *operand2 = NULL;
-
     if (operand1 != NULL) {
         operand2 = strtok(NULL, COMMA_STRING);
     }
 
     if (strcmp(label, EMPTY_STRING) != 0) {
-        /* Only labels allowed to be reused is entry if the new lable is not an .entry */
+        /* Labels can be reused only in very specific .entry scenarious (enforced below).
+           NOTE: we keep the original error message text (with its typos) for compat. */
         Label *existing = find_label_by_name(lbls, label);
         if (existing && !existing->is_entry) {
             char msg[128];
@@ -108,26 +139,27 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
-        /* If existing is .entry, we allow reuse here (code line is not .entry) */
+        /* record code label location (IC) */
         if (!add_label_row(lbls, label, tbl->size, CODE, FALSE, src_line, src_filename)) {
             return FALSE;
         }
     }
 
     /* master row for the command line (records original source line number) */
-    add_row(tbl, label, command, ONE, operands_string, ZERO, (unsigned int)src_line);
+    add_row(tbl, label, command, 1, operands_string, 0, (unsigned int)src_line);
     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
 
     int expected = command_operands[command];
 
-    if (expected == ZERO && operand1 != NULL) {
+    /* validate arity — classic fence-post checks */
+    if (expected == 0 && operand1 != NULL) {
         char msg[128];
         snprintf(msg, sizeof(msg), "Too many operands for command \"%s\" (expected 0)",
                  command_names[command]);
         print_error(src_filename, src_line, msg);
         return FALSE;
     }
-    if (expected == ONE) {
+    if (expected == 1) {
         if (operand2 != NULL) {
             char msg[128];
             snprintf(msg, sizeof(msg), "Too many operands for command \"%s\" (expected 1)",
@@ -145,7 +177,7 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         if (!add_operand(tbl, operand1, command, 1, (unsigned int)src_line, src_filename))
             return FALSE;
     }
-    else if (expected == TWO) {
+    else if (expected == 2) {
         if (operand2 == NULL) {
             char msg[128];
             snprintf(msg, sizeof(msg), "Too few operands for command \"%s\" (expected 2)",
@@ -160,8 +192,9 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
+
+        /* micro-optimization: 2 registers can be packed into 1 row */
         if (is_register(operand1) != FALSE && is_register(operand2) != FALSE) {
-            /* pack two registers into a single operand row */
             if (!add_operand(tbl, operands_string, command, 1, (unsigned int)src_line, src_filename))
                 return FALSE;
         } else {
@@ -172,7 +205,8 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         }
     }
 
-    if ((expected > 0 && comma_count > expected - 1) || (expected == ZERO && comma_count > 0)) {
+    /* comma policy: catch extra or missing 1s (pretty common student bug btw) */
+    if ((expected > 0 && comma_count > expected - 1) || (expected == 0 && comma_count > 0)) {
         print_error(src_filename, src_line, "Unexpected extra comma");
         return FALSE;
     }
@@ -184,6 +218,12 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     return TRUE;
 }
 
+/*
+ * add_data_to_table
+ * -----------------
+ * Handles data directives like .data / .string / .mat etc.
+ * Careful with quotes and matrix sizes; we mimic the assembler rules exactly.
+ */
 int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
                       char *operands_string, int src_line, const char *src_filename) {
     char operands_copy[MAX_OPERAND_LEN];
@@ -191,7 +231,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
     operands_copy[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
     if (strcmp(label, EMPTY_STRING) != 0) {
-        /* Only labels allowed to be reused is entry if the new lable is not an .entry */
+        /* Same reuse rule as in commands. Keep original message strings (typos and all). */
         Label *existing = find_label_by_name(lbls, label);
         if (existing && !existing->is_entry) {
             char msg[128];
@@ -200,7 +240,6 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
-        /* If existing is .entry, we allow reuse here (data directive is not .entry) */
         if (!add_label_row(lbls, label, tbl->size, DATA, FALSE, src_line, src_filename)) {
             return FALSE;
         }
@@ -209,11 +248,12 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
     int first = TRUE;
 
     if (command == STR) {
+        /* parse chars between quotes as separate bytes */
         int in_quotes = FALSE;
         int i;
         int quote_count = 0;
 
-        for (i = ZERO; operands_copy[i] != NULL_CHAR; i++) {
+        for (i = 0; operands_copy[i] != NULL_CHAR; i++) {
             if (operands_copy[i] == '"') {
                 in_quotes = !in_quotes;
                 quote_count++;
@@ -223,7 +263,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             if (in_quotes) {
                 char c[2] = {operands_copy[i], NULL_CHAR};
                 if (first) {
-                    add_row(tbl, label, command, TRUE, c, ZERO, (unsigned int)src_line);
+                    add_row(tbl, label, command, TRUE, c, 0, (unsigned int)src_line);
                     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
@@ -244,25 +284,28 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             return FALSE;
         }
         if (quote_count == 2 && !operands_copy[i - 2]) {
-            /* special case: "" empty string */
+            /* special case: "" empty string (not allowed in spec here) */
             print_error(src_filename, src_line,
                         "Empty string \"\" is not allowed");
             return FALSE;
         }
 
-        /* terminating null byte of string */
+        /* terminating null byte of string (end-of-text marker) */
         if (!add_operand(tbl, "", command, 0, (unsigned int)src_line, src_filename))
             return FALSE;
     }
     else if (command == MAT) {
+        /* MAT expects a fixed count of values based on the matrix size specifier */
         int size = is_matrix(operands_string);
 
         char *operand = strtok(operands_copy, COMMA_STRING);
-        int count = ZERO;
+        int count = 0;
 
         while (count < size) {
             if (operand != NULL) {
                 if (first) {
+                    /* For the first item, we must strip the "[..][..]" part and keep the value.
+                       This is a bit fiddly but works fine — dont change pls :) */
                     char first_str[MAX_OPERAND_LEN];
                     int bracket_count = 0;
                     char *ptr = operand;
@@ -278,7 +321,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
                         }
                         ptr++;
                     }
-                    add_row(tbl, label, command, TRUE, first_str, ZERO, (unsigned int)src_line);
+                    add_row(tbl, label, command, TRUE, first_str, 0, (unsigned int)src_line);
                     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
@@ -287,8 +330,9 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
                 }
                 operand = strtok(NULL, COMMA_STRING);
             } else {
+                /* If fewer values than needed, pad with EMPTY_STRING (assembler semantics) */
                 if (first) {
-                    add_row(tbl, label, command, TRUE, operands_string, ZERO, (unsigned int)src_line);
+                    add_row(tbl, label, command, TRUE, operands_string, 0, (unsigned int)src_line);
                     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                     first = FALSE;
                 } else {
@@ -298,6 +342,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             }
             count++;
         }
+        /* If there are *more* values than size, thats an error */
         if (operand != NULL) {
             operand = strtok(NULL, COMMA_STRING);
             if (operand != NULL) {
@@ -310,11 +355,12 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
         }
     }
     else {
+        /* .data-like list of numbers/operands separated by commas */
         char *operand = strtok(operands_copy, COMMA_STRING);
 
         while (operand != NULL) {
             if (first) {
-                add_row(tbl, label, command, TRUE, operand, ZERO, (unsigned int)src_line);
+                add_row(tbl, label, command, TRUE, operand, 0, (unsigned int)src_line);
                 if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
                 first = FALSE;
             } else {
@@ -328,6 +374,12 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
     return TRUE;
 }
 
+/*
+ * process_file_to_table_and_labels
+ * --------------------------------
+ * Top-level driver: loops over input lines, splits optional label, detects directive
+ * vs command, and dispatches to the proper helper. Keeps the original error text.
+ */
 int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const char *src_filename) {
     char line[MAX_LINE_LENGTH];
     int error = FALSE;
@@ -344,11 +396,13 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
             if (nl) *nl = NULL_CHAR;
         }
 
+        /* skip empty/comment-only lines early for speed (tiny micro-optim) */
         if (line[0] == NULL_CHAR || line[0] == NEWLINE_CHAR || line[0] == COMMENT_CHAR) {
             /* Skip empty lines */
             continue;
         }
         if (line[0] == SEMI_COLON_CHAR) {
+            /* colon at start means there was a ':' with no label chars before it */
             print_error(src_filename, src_line, "Empty label");
             error = TRUE;
         }
@@ -390,6 +444,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
 
         if (word != NULL) {
             if (strcmp(word, ENTRY) == 0) {
+                /* .entry <label> — mark a symbol as entry point */
                 char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
                 Label *existing = find_label_by_name(lbls, rest);
 
@@ -400,12 +455,13 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                     print_error(src_filename, src_line, msg);
                     error = TRUE;
                 } else {
-                    if (!add_label_row(lbls, rest, ZERO, UNKNOWN, TRUE, src_line, src_filename)) {
+                    if (!add_label_row(lbls, rest, 0, UNKNOWN, TRUE, src_line, src_filename)) {
                         error = TRUE;  /* fixed: was FALSE */
                     }
                 }
             }
             else if (strcmp(word, EXTERN) == 0) {
+                /* .extern <label> — declare an external symbol */
                 char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
                 Label *existing = find_label_by_name(lbls, rest);
 
@@ -416,12 +472,13 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                     print_error(src_filename, src_line, msg);
                     error = TRUE;
                 } else {
-                    if (!add_label_row(lbls, rest, ZERO, EXT, FALSE, src_line, src_filename)) {
+                    if (!add_label_row(lbls, rest, 0, EXT, FALSE, src_line, src_filename)) {
                         error = TRUE;  /* fixed: was FALSE */
                     }
                 }
             }
             else {
+                /* otherwise it's a regular command or a data directive */
                 int command = NOT_FOUND;
                 char operands_string[MAX_OPERAND_LEN] = EMPTY_STRING;
 
@@ -429,17 +486,20 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                 command = find_command(word, label);
 
                 if (command == NOT_FOUND) {
+                    /* Unrecognized mnemonic or directive */
                     char msg[128];
                     snprintf(msg, sizeof(msg), "Command \"%s\" not recognised", word ? word : "(null)");
                     print_error(src_filename, src_line, msg);
                     error = TRUE;
                 }
                 else {
+                    /* grab rest of the line as raw operands string (could be empty) */
                     char *rest = strtok(NULL, NEW_LINE_STRING);
                     if (rest != NULL) {
                         strcpy(operands_string, rest);
                     }
 
+                    /* command range: < NUMBER_OF_COMMANDS means “real instruction” */
                     if (command < NUMBER_OF_COMMANDS) {
                         if (!add_command_to_table(tbl, lbls, label, command, operands_string,
                                                   src_line, src_filename)) {
@@ -455,7 +515,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
             }
         }
 
-        /* Early-out if we already overflowed to avoid cascading errors */
+        /* Early-out if we already overflowed to avoid cascading errors (good UX) */
         if (tbl->size > MAX_TABLE_ROWS) {
             /* Specific overflow error should have been printed at point of failure. */
             break;
@@ -464,4 +524,3 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
 
     return error;
 }
-

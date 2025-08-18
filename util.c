@@ -6,156 +6,160 @@
 #include "util.h"
 #include "labels.h"
 
+/* this func trys to find a comand by name or label */
 int find_command(char *word, char *label) {
     int i;
-
-    for (i = ZERO; i < NUMBER_OF_COMMANDS; i++) {
+for (i = 0; i < NUMBER_OF_COMMANDS; i++) {
         if (strcmp(word, command_names[i]) == 0) {
-            return i;
+            return i; // found normal command
         }
         if (i < NUMBER_OF_DATA_TYPES &&
             strcmp(label, EMPTY_STRING) != 0 &&
             strcmp(word, command_names[i + NUMBER_OF_COMMANDS]) == 0) {
-            return i + NUMBER_OF_COMMANDS;
-         }
+            return i + NUMBER_OF_COMMANDS; // found data type command
+        }
     }
-
-    return NOT_FOUND;
+    return NOT_FOUND; // nothing was found
 }
 
+/* chek if string is a number (can be double also) */
 int is_number(const char *s, double *out) {
     if (s == NULL) return FALSE;
 
-    // skip leading spaces
+    // skip space at the start
     while (isspace((unsigned char)*s)) s++;
-    if (*s == NULL_CHAR) return FALSE; // empty after trimming
+    if (*s == NULL_CHAR) return FALSE; // empty str
 
-    // optional sign
+    // sign + or -
     const char *p = s;
     if (*p == PLUS_CHAR || *p == MINUS_CHAR) p++;
 
-    int has_digit = ZERO;
-    int has_dot = ZERO;
+    int has_digit = 0;
+    int has_dot = 0;
 
+    // loop over chars
     for (; *p; p++) {
         if (isdigit((unsigned char)*p)) {
             has_digit = TRUE;
         } else if (*p == DOT_CHAR) {
             if (has_dot) {
-                // already had a dot, invalid
-                return FALSE;
+                return FALSE; // more than 1 dot = invalid
             }
             has_dot = TRUE;
         } else if (isspace((unsigned char)*p)) {
-            // allow trailing spaces, but nothing non-space after
+            // allow space at end but nothing after
             while (*p && isspace((unsigned char)*p)) p++;
             if (*p == NULL_CHAR) break;
             return FALSE;
         } else {
-            // invalid character
-            return FALSE;
+            return FALSE; // not valid char
         }
     }
 
-    if (!has_digit) return FALSE; // must contain at least one digit
+    if (!has_digit) return FALSE; // must be atleast 1 digit
 
-    // If we reached here, it's valid
+    // if ok then convert to double
     if (out) {
-        *out = strtod(s, NULL); // convert to double
+        *out = strtod(s, NULL);
     }
     return TRUE;
 }
 
+/* chek if its a register (like r0 - r7) */
 int is_register(const char *op) {
     char opbuf[MAX_OPERAND_LEN];
     strncpy(opbuf, op, MAX_OPERAND_LEN - 1);
     opbuf[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
-    // trim leading spaces
+    // remove spaces at start
     char *reg = opbuf;
     while (isspace((unsigned char)*reg)) reg++;
 
-    // trim trailing spaces
-    char *end = reg + strlen(reg) - ONE;
+    // remove spaces at end
+    char *end = reg + strlen(reg) - 1;
     while (end > reg && isspace((unsigned char)*end)) *end-- = NULL_CHAR;
-    *(end + ONE) = NULL_CHAR;
+    *(end + 1) = NULL_CHAR;
 
-    if (reg[ZERO] == R_CHAR) {
-        // Check if the second character is a digit between 0 and 7
-        if (reg[ONE] < R0 || reg[ONE] > R7) {
-            return NOT_FOUND; // Invalid register
-        }
-    } else {
-        return FALSE; // Not a register
+    if (strlen(reg) < 2 || strlen(reg) > 3) {
+        return FALSE; // must be r0 - r7
     }
 
+    if (reg[0] == R_CHAR) {
+        // check if second char is digit between 0-7
+        if (reg[1] < R0 || reg[1] > R7) {
+            return NOT_FOUND;
+        }
+    } else {
+        return FALSE; // not a reg
+    }
     return TRUE;
 }
 
+/* chek if its an immidiate value (#something) */
 int is_immediate(const char *op) {
     char opbuf[MAX_OPERAND_LEN];
     strncpy(opbuf, op, MAX_OPERAND_LEN - 1);
     opbuf[MAX_OPERAND_LEN - 1] = NULL_CHAR;
 
-    // trim leading spaces
+    // skip leading space
     char *reg = opbuf;
     while (isspace((unsigned char)*reg)) reg++;
 
-
-    // Check if first character is '#'
+    // first char must be '#'
     if (reg[0] != IMMEDIATE_CHAR) {
         return 0;
     }
     return 1;
 }
 
+/* chek if its a matrix like [2][3] or mat[4][5] */
 int is_matrix(const char *op) {
     char buf[MAX_OPERAND_LEN];
-    strncpy(buf, op, sizeof(buf) - ONE);
-    buf[sizeof(buf) - ONE] = NULL_CHAR;
+    strncpy(buf, op, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = NULL_CHAR;
 
     int valid = 0;
 
-    // Find the first '[' (could be at start for "[4][4]" or after name for "Mat[1][2]")
+    // first '['
     char *first_bracket = strchr(buf, SQUARE_BRACKET_START_CHAR);
     if (!first_bracket) return NOT_FOUND;
 
-    // Find the first ']' after the first '['
-    char *first_close = strchr(first_bracket + ONE, SQUARE_BRACKET_END_CHAR);
+    // first ']'
+    char *first_close = strchr(first_bracket + 1, SQUARE_BRACKET_END_CHAR);
     if (!first_close) return NOT_FOUND;
 
-    // Extract first number (between first [ and ])
-    *first_close = NULL_CHAR;  // Temporarily null-terminate
-    char *first_num_str = first_bracket + ONE;  // Skip the '['
+    // extract first value
+    *first_close = NULL_CHAR;
+    char *first_num_str = first_bracket + 1;
 
     double first_value;
     if (!is_number(first_num_str, &first_value) && is_register(first_num_str) != TRUE) {
-        valid = -2;
+        valid = FALSE_FOUND;
     }
 
-    // Find the second '[' after the first ']'
-    char *second_bracket = strchr(first_close + ONE, SQUARE_BRACKET_START_CHAR);
+    // second '['
+    char *second_bracket = strchr(first_close + 1, SQUARE_BRACKET_START_CHAR);
     if (!second_bracket) return NOT_FOUND;
 
-    // Find the second ']' after the second '['
+    // second ']'
     char *second_close = strchr(second_bracket, SQUARE_BRACKET_END_CHAR);
     if (!second_close) return NOT_FOUND;
 
-    // Extract second number (between second [ and ])
-    *second_close = NULL_CHAR;  // Temporarily null-terminate
-    char *second_num_str = second_bracket + ONE;  // Skip the '['
+    // extract second value
+    *second_close = NULL_CHAR;
+    char *second_num_str = second_bracket + 1;
 
     double second_value;
     if (!is_number(second_num_str, &second_value) && is_register(second_num_str) != TRUE) {
-        valid = -2;
+        valid = FALSE_FOUND;
     }
 
+    // if 1 is reg and other is number its invalid
     if (is_register(first_num_str) != is_register(second_num_str)) {
-        // If one is a register and the other is a number, it's invalid
-        return -2;
+        return FALSE_FOUND;
     }
 
-    // Check if both values are integers (whole numbers)
+    // if both numbers are whole int
     if (first_value == trunc(first_value) && second_value == trunc(second_value)) {
         return (int)first_value * (int)second_value;
     }
@@ -163,6 +167,7 @@ int is_matrix(const char *op) {
     return valid;
 }
 
+/* print error msg to stderr */
 void print_error(const char *filename, int line_number, const char *msg) {
     fprintf(stderr, "Error: %s at line %d: %s\n", filename, line_number, msg);
 }

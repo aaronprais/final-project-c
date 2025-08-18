@@ -2,23 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+
 #include "util.h"
 #include "labels.h"
 
 /* ---------------- Construction / Destruction ---------------- */
 
+/* Allocates a new Labels table (initialy empty) */
 Labels* create_label_table() {
     Labels *lbls = malloc(sizeof(Labels));
     if (!lbls) {
         print_error("SYSTEM", -1, "Failed to allocate labels table (malloc)");
-        exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE); /* no point continuing if malloc fails */
     }
     lbls->data = NULL;
-    lbls->size = ZERO;
-    lbls->capacity = ZERO;
+    lbls->size = 0;
+    lbls->capacity = 0;
     return lbls;
 }
 
+/* Frees both the array data and the wrapper struct itself */
 void free_label_table(Labels *lbls) {
     if (lbls) {
         free(lbls->data);
@@ -26,9 +29,10 @@ void free_label_table(Labels *lbls) {
     }
 }
 
+/* Make sure we got enough room for new entries (realloc doubles size each time) */
 void ensure_label_capacity(Labels *lbls) {
     if (lbls->size >= lbls->capacity) {
-        lbls->capacity = (lbls->capacity == ZERO) ? FOUR : lbls->capacity * TWO;
+        lbls->capacity = (lbls->capacity == 0) ? 4 : lbls->capacity * 2;
         Label *new_data = realloc(lbls->data, lbls->capacity * sizeof(Label));
         if (!new_data) {
             print_error("SYSTEM", -1, "Failed to reallocate labels table (realloc)");
@@ -40,20 +44,18 @@ void ensure_label_capacity(Labels *lbls) {
 
 /* ---------------- Helpers ---------------- */
 
+/* normalizes label string: trims whitespace + removes single trailing ':' */
 static void normalize_label_name(char *s) {
-    /* Trim whitespace */
     char *start = s;
     while (*start && isspace((unsigned char)*start)) start++;
     char *end = start + strlen(start);
-    while (end > start && isspace((unsigned char)*(end-1))) end--;
+    while (end > start && isspace((unsigned char)*(end - 1))) end--;
     *end = NULL_CHAR;
 
-    /* Strip a single trailing ':' if present */
     size_t len = strlen(start);
-    if (len && start[len-1] == SEMI_COLON_CHAR) {
-        start[len-1] = NULL_CHAR;
+    if (len && start[len - 1] == SEMI_COLON_CHAR) {
+        start[len - 1] = NULL_CHAR;
     }
-
     if (start != s) {
         memmove(s, start, strlen(start) + 1);
     }
@@ -61,9 +63,11 @@ static void normalize_label_name(char *s) {
 
 /* ---------------- API ---------------- */
 
-int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTypes label_type,
-                  unsigned int is_entry, int src_line, const char *src_filename) {
-    char raw[MAX_LABEL_LEN + 1];  /* local buffer; +1 for terminator */
+/* Adds a new label row (does validation of name and type) */
+int add_label_row(Labels *lbls, const char *label, int table_row_index,
+                  LabelTypes label_type, unsigned int is_entry,
+                  int src_line, const char *src_filename) {
+    char raw[MAX_LABEL_LEN + 1];
     int i = 0;
 
     if (is_register(label)) {
@@ -71,14 +75,14 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTyp
         return FALSE;
     }
 
-    /* Copy up to MAX_LABEL_LEN characters (we only care about the first MAX_LABEL_LEN) */
+    /* copy string safely up to max length */
     while (label[i] != NULL_CHAR && i < MAX_LABEL_LEN) {
         raw[i] = label[i];
         i++;
     }
     raw[i] = NULL_CHAR;
 
-    /* Trim leading/trailing whitespace */
+    /* trim whitespace */
     char *start = raw;
     while (*start && isspace((unsigned char)*start)) start++;
     char *end = start + (int)strlen(start);
@@ -86,13 +90,12 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTyp
     *end = NULL_CHAR;
 
     int len = (int)strlen(start);
-
     if (len == 0) {
         print_error(src_filename, src_line, "Invalid label: empty after trimming.");
         return FALSE;
     }
 
-    /* First char must be alphabetic */
+    /* must start with a letter */
     if (!isalpha((unsigned char)start[0])) {
         char msg[256];
         snprintf(msg, sizeof(msg),
@@ -101,7 +104,7 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTyp
         return FALSE;
     }
 
-    /* All chars must be alphanumeric */
+    /* rest must be alphanumeric */
     for (i = 0; i < len; i++) {
         if (!isalnum((unsigned char)start[i])) {
             char msg[256];
@@ -112,14 +115,12 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTyp
         }
     }
 
-    /* Passed validation -> store (already without ':') */
+    /* allocate space and copy into table */
     ensure_label_capacity(lbls);
-
-    /* Copy into slot; ensure null-termination according to your layout */
     strncpy(lbls->data[lbls->size].label, start, MAX_LABEL_LEN);
     lbls->data[lbls->size].label[LABEL_NULL_CHAR_LOCATION] = NULL_CHAR;
 
-    lbls->data[lbls->size].decimal_address = ZERO;
+    lbls->data[lbls->size].decimal_address = 0;
     lbls->data[lbls->size].table_row_index = table_row_index;
     lbls->data[lbls->size].type = label_type;
     lbls->data[lbls->size].is_entry = is_entry;
@@ -128,10 +129,9 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTyp
     return TRUE;
 }
 
-
-
+/* safe index getter (returns NULL + error msg if out of bounds) */
 Label* get_label(Labels *lbls, int index) {
-    if (index < ZERO || index >= lbls->size) {
+    if (index < 0 || index >= lbls->size) {
         char msg[128];
         snprintf(msg, sizeof(msg), "Invalid label index %d", index);
         print_error("SYSTEM", -1, msg);
@@ -140,24 +140,26 @@ Label* get_label(Labels *lbls, int index) {
     return &lbls->data[index];
 }
 
+/* just checks if word ends with ':' (simple but works) */
 int is_label(char *word) {
     size_t n = strlen(word);
     return (n > 0 && word[n - 1] == SEMI_COLON_CHAR) ? TRUE : FALSE;
 }
 
+/* resets all label addresses by adding offset (usualy 100) */
 void reset_labels_addresses(Labels *lbls, unsigned int offset) {
     int i;
-    for (i = ZERO; i < lbls->size; i++) {
+for (i = 0; i < lbls->size; i++) {
         lbls->data[i].decimal_address = offset + lbls->data[i].table_row_index;
     }
 }
 
+/* debug printer for labels table (nice for student testing) */
 void print_labels(Labels *lbls) {
     printf("Row | Label           | Addr | Index | Type | Entry\n");
     printf("----+------------------+------+-----+----------\n");
     int i;
-
-    for (i = 0; i < lbls->size; i++) {
+for (i = 0; i < lbls->size; i++) {
         printf("%-3d | %-15s | %4u | %-3d | %-3d | %-3d \n",
                i,
                lbls->data[i].label,
@@ -168,7 +170,7 @@ void print_labels(Labels *lbls) {
     }
 }
 
-/* New: find a label by name (ignores an optional trailing ':' on the lookup name) */
+/* find a label by its name (ignores trailing ':' if user typed one) */
 Label* find_label_by_name(const Labels *lbls, const char *name) {
     if (!lbls || !name) return NULL;
 
@@ -176,28 +178,25 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
     strncpy(key, name, MAX_LABEL_LEN - 1);
     key[MAX_LABEL_LEN - 1] = NULL_CHAR;
 
-    /* Normalize key: trim + strip trailing ':' */
+    /* normalize */
     char *start = key;
     while (*start && isspace((unsigned char)*start)) start++;
     char *end = start + strlen(start);
-    while (end > start && isspace((unsigned char)*(end-1))) end--;
+    while (end > start && isspace((unsigned char)*(end - 1))) end--;
     *end = NULL_CHAR;
     size_t len = strlen(start);
-    if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
-
-    Label *temp = NULL;
+    if (len && start[len - 1] == SEMI_COLON_CHAR) start[len - 1] = NULL_CHAR;
 
     int i;
-    for (i = 0; i < lbls->size; i++) {
+for (i = 0; i < lbls->size; i++) {
         if (strcmp(lbls->data[i].label, start) == 0) {
-            /* cast away const to match return type; callers should treat as read-only */
-            temp = (Label*)&lbls->data[i];
+            return (Label*)&lbls->data[i]; /* cast away const */
         }
     }
-    return temp;
+    return NULL;
 }
 
-
+/* count how many times a label name appears (could be duplicates in some cases) */
 int count_label_by_name(const Labels *lbls, const char *name) {
     if (!lbls || !name) return 0;
 
@@ -205,21 +204,18 @@ int count_label_by_name(const Labels *lbls, const char *name) {
     strncpy(key, name, MAX_LABEL_LEN - 1);
     key[MAX_LABEL_LEN - 1] = NULL_CHAR;
 
-    /* Normalize key: trim + strip trailing ':' */
     char *start = key;
     while (*start && isspace((unsigned char)*start)) start++;
     char *end = start + strlen(start);
-    while (end > start && isspace((unsigned char)*(end-1))) end--;
+    while (end > start && isspace((unsigned char)*(end - 1))) end--;
     *end = NULL_CHAR;
     size_t len = strlen(start);
-    if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
+    if (len && start[len - 1] == SEMI_COLON_CHAR) start[len - 1] = NULL_CHAR;
 
     int count = 0;
-
     int i;
-    for (i = 0; i < lbls->size; i++) {
+for (i = 0; i < lbls->size; i++) {
         if (strcmp(lbls->data[i].label, start) == 0) {
-            /* cast away const to match return type; callers should treat as read-only */
             count++;
         }
     }
