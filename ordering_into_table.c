@@ -446,34 +446,46 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
             if (strcmp(word, ENTRY) == 0) {
                 /* .entry <label> — mark a symbol as entry point */
                 char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
-                Label *existing = find_label_by_name(lbls, rest);
-
-                if (existing && (existing->is_entry || count_label_by_name(lbls, rest) > 1)) {
-                    char msg[128];
-                    /* exact phrasing requested */
-                    snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
-                    print_error(src_filename, src_line, msg);
+                if (!rest) {
+                    print_error(src_filename, src_line, ".entry requires a label");
                     error = TRUE;
-                } else {
-                    if (!add_label_row(lbls, rest, 0, UNKNOWN, TRUE, src_line, src_filename)) {
-                        error = TRUE;  /* fixed: was FALSE */
+                }
+                else {
+                    Label *existing = find_label_by_name(lbls, rest);
+
+                    if (existing && (existing->is_entry || count_label_by_name(lbls, rest) > 1)) {
+                        char msg[128];
+                        /* exact phrasing requested */
+                        snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
+                        print_error(src_filename, src_line, msg);
+                        error = TRUE;
+                    } else {
+                        if (!add_label_row(lbls, rest, 0, UNKNOWN, TRUE, src_line, src_filename)) {
+                            error = TRUE;  /* fixed: was FALSE */
+                        }
                     }
                 }
             }
             else if (strcmp(word, EXTERN) == 0) {
                 /* .extern <label> — declare an external symbol */
                 char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
-                Label *existing = find_label_by_name(lbls, rest);
 
-                if (existing) {
-                    char msg[128];
-                    /* exact phrasing requested */
-                    snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
-                    print_error(src_filename, src_line, msg);
+                if (!rest) {
+                    print_error(src_filename, src_line, ".extern requires a label");
                     error = TRUE;
-                } else {
-                    if (!add_label_row(lbls, rest, 0, EXT, FALSE, src_line, src_filename)) {
-                        error = TRUE;  /* fixed: was FALSE */
+                }
+                else {
+                    Label *existing = find_label_by_name(lbls, rest);
+                    if (existing) {
+                        char msg[128];
+                        /* exact phrasing requested */
+                        snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");
+                        print_error(src_filename, src_line, msg);
+                        error = TRUE;
+                    } else {
+                        if (!add_label_row(lbls, rest, 0, EXT, FALSE, src_line, src_filename)) {
+                            error = TRUE;  /* fixed: was FALSE */
+                        }
                     }
                 }
             }

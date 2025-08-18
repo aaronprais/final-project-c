@@ -42,25 +42,6 @@ void ensure_label_capacity(Labels *lbls) {
     }
 }
 
-/* ---------------- Helpers ---------------- */
-
-/* normalizes label string: trims whitespace + removes single trailing ':' */
-static void normalize_label_name(char *s) {
-    char *start = s;
-    while (*start && isspace((unsigned char)*start)) start++;
-    char *end = start + strlen(start);
-    while (end > start && isspace((unsigned char)*(end - 1))) end--;
-    *end = NULL_CHAR;
-
-    size_t len = strlen(start);
-    if (len && start[len - 1] == SEMI_COLON_CHAR) {
-        start[len - 1] = NULL_CHAR;
-    }
-    if (start != s) {
-        memmove(s, start, strlen(start) + 1);
-    }
-}
-
 /* ---------------- API ---------------- */
 
 /* Adds a new label row (does validation of name and type) */

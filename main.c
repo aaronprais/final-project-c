@@ -9,8 +9,6 @@
 #include "pre_assembly.h"
 #include "file_formating.h"
 
-#define MAX_FILENAME 100  /* buffer for "<base>.ext" file names (should be enuf) */
-
 int main(int argc, char *argv[]) {
     FILE *fp;
     char filename[MAX_FILENAME];
@@ -57,6 +55,14 @@ int main(int argc, char *argv[]) {
 
         Table *tbl = create_table();            /* holds rows (IC/DC stuff) */
         Labels *lbls = create_label_table();    /* symbol table (entries, externs, etc) */
+
+        if (!tbl || !lbls) {
+            fprintf(stderr, "Error: failed to allocate memory for table or labels\n");
+            fclose(fp);
+            if (tbl) free_table(tbl);
+            if (lbls) free_label_table(lbls);
+            continue; /* process next file */
+        }
 
         failed = process_file_to_table_and_labels(tbl, lbls, fp, filename);
         fclose(fp);
