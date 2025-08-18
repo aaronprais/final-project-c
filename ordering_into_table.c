@@ -256,7 +256,7 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
 
         for (i = 0; operands_copy[i] != NULL_CHAR; i++) {
 
-            if (after_quotes && !iswspace(operands_copy[i])) {
+            if (after_quotes && !isspace(operands_copy[i])) {
                 print_error(src_filename, src_line, "String after quotes has text");
             }
 
