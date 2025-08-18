@@ -146,7 +146,7 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
-        if (is_register(operand1) && is_register(operand2)) {
+        if (is_register(operand1) != FALSE && is_register(operand2) != FALSE) {
             /* pack two registers into a single operand row */
             if (!add_operand(tbl, operands_string, command, 1, (unsigned int)src_line, src_filename))
                 return FALSE;

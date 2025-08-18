@@ -16,7 +16,7 @@ static inline int detect_mode(const char *op) {
     if (!op)                             return 0; /* won't be used if missing */
     if (is_matrix(op) != NOT_FOUND)      return MATRIX_ACCESS_ADDRESSING;   // 2
     if (is_immediate(op))                return IMMEDIATE_ADDRESSING;       // 0
-    if (is_register(op))                 return DIRECT_REGISTER_ADDRESSING;  // 3
+    if (is_register(op) != FALSE)        return DIRECT_REGISTER_ADDRESSING;  // 3
     return DIRECT_ADDRESSING;                                                // 1 (label/direct by default)
 }
 static inline const char* mode_name(int m) {
@@ -162,14 +162,110 @@ static inline unsigned int pack_payload_with_are(unsigned int payload8, unsigned
     return ((payload8 & 0xFF) << 2) | (are2 & 0x3);
 }
 
-// encode the registers portion of a matrix like "[r2][r7]" (row -> bits 2–5, col -> bits 6–9)
-static inline unsigned int encode_matrix_regs(const char *regstr) {
-    int r_row = -1, r_col = -1;
-    if (sscanf(regstr, "[r%d][r%d]", &r_row, &r_col) == 2 &&
-        r_row >= 0 && r_row <= 7 && r_col >= 0 && r_col <= 7) {
-        return ((r_row & 0x7) << 6) | ((r_col & 0x7) << 2) | A_ARE;
+/* Returns TRUE / FALSE / NOT_FOUND per the spec */
+int encode_two_register_operands(const char *operand, Row *row) {
+    if (!operand) return FALSE;
+
+    char buf[MAX_OPERAND_LEN + 1];
+    int i = 0;
+    while (operand[i] != '\0' && i < MAX_OPERAND_LEN) {
+        buf[i] = operand[i];
+        i++;
     }
-    return 0; // invalid pattern
+    buf[i] = '\0';
+
+    /* Find comma separating the two operands */
+    char *comma = strchr(buf, ',');
+    if (!comma) return FALSE;
+
+    *comma = '\0';
+    char *left  = buf;
+    char *right = comma + 1;
+
+    /* --- Trim inline --- */
+    while (*left == ' ' || *left == '\t') left++;            /* skip leading left */
+    char *end = left + strlen(left) - 1;
+    while (end >= left && (*end == ' ' || *end == '\t')) {   /* trim trailing left */
+        *end = '\0';
+        end--;
+    }
+
+    while (*right == ' ' || *right == '\t') right++;         /* skip leading right */
+    end = right + strlen(right) - 1;
+    while (end >= right && (*end == ' ' || *end == '\t')) {  /* trim trailing right */
+        *end = '\0';
+        end--;
+    }
+    /* --- End trim --- */
+
+    if (*right == '\0' || *left == '\0') return FALSE;
+
+    /* Extract register numbers directly */
+    int r1 = -1, r2 = -1;
+    if (sscanf(left, "r%d", &r1) != 1) return FALSE;
+    if (sscanf(right, "r%d", &r2) != 1) return FALSE;
+
+    /* Optional: range check */
+    if (r1 < 0 || r1 > 7 || r2 < 0 || r2 > 7) return NOT_FOUND;
+
+    /* Encode */
+    unsigned int word = ((r1 & 0xF) << 6) | ((r2 & 0xF) << 2) | A_ARE;
+    row->binary_machine_code = (word & TEN_BIT_MASK);
+
+    return TRUE;
+}
+
+
+// encode the registers portion of a matrix like "[r2][r7]" (row -> bits 2–5, col -> bits 6–9)
+/* requires <ctype.h> and <stdlib.h> for isspace/strtol */
+static inline unsigned int encode_matrix_regs(const char *regstr) {
+    if (!regstr) return 0;
+
+    const char *p = regstr;
+    int r_row = -1, r_col = -1;
+
+    /* helper: skip whitespace */
+    while (*p && isspace((unsigned char)*p)) p++;
+
+    if (*p != '[') return 0;
+    p++;
+    while (*p && isspace((unsigned char)*p)) p++;
+
+    if (*p != 'r') return 0;
+    p++;
+
+    char *endptr = NULL;
+    long v = strtol(p, &endptr, 10);
+    if (endptr == p || v < 0 || v > 7) return 0;
+    r_row = (int)v;
+    p = endptr;
+
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p != ']') return 0;
+    p++;
+    while (*p && isspace((unsigned char)*p)) p++;
+
+    if (*p != '[') return 0;
+    p++;
+    while (*p && isspace((unsigned char)*p)) p++;
+
+    if (*p != 'r') return 0;
+    p++;
+
+    v = strtol(p, &endptr, 10);
+    if (endptr == p || v < 0 || v > 7) return 0;
+    r_col = (int)v;
+    p = endptr;
+
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p != ']') return 0;
+    p++;
+    while (*p && isspace((unsigned char)*p)) p++;
+
+    if (*p != '\0') return 0;  /* trailing junk not allowed */
+
+    /* mapping: row -> bits 6–8, col -> bits 2–4 */
+    return ((r_row & 0x7) << 6) | ((r_col & 0x7) << 2) | A_ARE;
 }
 
 // main function updated to report errors with filename + original line
@@ -184,20 +280,22 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
     }
 
     // 1) Two-register special form: "rX, rY" (spaces optional)
-    {
-        int r1 = -1, r2 = -1;
-        if (sscanf(operand, " r%d , r%d ", &r1, &r2) == 2 ||
-            sscanf(operand, " r%d ,r%d ",  &r1, &r2) == 2 ||
-            sscanf(operand, " r%d,r%d ",   &r1, &r2) == 2) {
-            if (r1 >= 0 && r1 <= 7 && r2 >= 0 && r2 <= 7) {
-                unsigned int word = ((r1 & 0xF) << 6) | ((r2 & 0xF) << 2) | A_ARE;
-                row->binary_machine_code = (word & TEN_BIT_MASK);
-                return TRUE;
-            }
-            error_at_row(src_filename, row, "Register index out of range in two-register operand");
-            return FALSE;
+    if (is_matrix(operand) == -2) {
+        error_at_row(src_filename, row, "Only registers between r0 and r7 are allowed");
+        return FALSE;
     }
+
+    int two_register_operands = encode_two_register_operands(operand, row);
+
+    if (two_register_operands == TRUE) {
+        return TRUE;
     }
+    if (two_register_operands == NOT_FOUND) {
+        print_error(src_filename, (int)row->original_line_number,
+                     "Invalid two-register operand syntax; expected 'rX, rY' with X and Y in 0..7");
+        return FALSE;
+    }
+
 
     // 2) Matrix operand (this encodes the REGISTERS word from something like "M1[r2][r7]")
     if (is_matrix(operand) != NOT_FOUND) {
@@ -249,6 +347,19 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
 
         row->binary_machine_code = (word & TEN_BIT_MASK);
         return TRUE;
+    }
+    if (is_register(operand) == NOT_FOUND) {
+        error_at_row(src_filename, row, "Invalid operand: expected a register (r0..r7)");
+        return FALSE;
+    }
+
+    int two_operands = encode_two_register_operands(operand, row);
+    if (two_operands == TRUE) {
+        return TRUE;
+    }
+    if (two_operands == NOT_FOUND) {
+        error_at_row(src_filename, row, "Invalid two-register, register must be r0 to r7");
+        return FALSE;
     }
 
     // 5) Label (direct addressing): address -> bits 2–9; ARE=10 (reloc) or 01 (ext)

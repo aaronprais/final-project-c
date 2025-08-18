@@ -80,7 +80,16 @@ int is_register(const char *op) {
     while (end > reg && isspace((unsigned char)*end)) *end-- = NULL_CHAR;
     *(end + ONE) = NULL_CHAR;
 
-    return strlen(reg) == REGISTER_LEN && reg[ZERO] == R_CHAR && reg[ONE] >= R0 && reg[ONE] <= R7;
+    if (reg[ZERO] == R_CHAR) {
+        // Check if the second character is a digit between 0 and 7
+        if (reg[ONE] < R0 || reg[ONE] > R7) {
+            return NOT_FOUND; // Invalid register
+        }
+    } else {
+        return FALSE; // Not a register
+    }
+
+    return TRUE;
 }
 
 int is_immediate(const char *op) {
@@ -105,6 +114,8 @@ int is_matrix(const char *op) {
     strncpy(buf, op, sizeof(buf) - ONE);
     buf[sizeof(buf) - ONE] = NULL_CHAR;
 
+    int valid = 0;
+
     // Find the first '[' (could be at start for "[4][4]" or after name for "Mat[1][2]")
     char *first_bracket = strchr(buf, SQUARE_BRACKET_START_CHAR);
     if (!first_bracket) return NOT_FOUND;
@@ -118,8 +129,8 @@ int is_matrix(const char *op) {
     char *first_num_str = first_bracket + ONE;  // Skip the '['
 
     double first_value;
-    if (!is_number(first_num_str, &first_value) && !is_register(first_num_str)) {
-        return NOT_FOUND;
+    if (!is_number(first_num_str, &first_value) && is_register(first_num_str) != TRUE) {
+        valid = -2;
     }
 
     // Find the second '[' after the first ']'
@@ -135,8 +146,13 @@ int is_matrix(const char *op) {
     char *second_num_str = second_bracket + ONE;  // Skip the '['
 
     double second_value;
-    if (!is_number(second_num_str, &second_value) && !is_register(second_num_str)) {
-        return NOT_FOUND;
+    if (!is_number(second_num_str, &second_value) && is_register(second_num_str) != TRUE) {
+        valid = -2;
+    }
+
+    if (is_register(first_num_str) != is_register(second_num_str)) {
+        // If one is a register and the other is a number, it's invalid
+        return -2;
     }
 
     // Check if both values are integers (whole numbers)
@@ -144,7 +160,7 @@ int is_matrix(const char *op) {
         return (int)first_value * (int)second_value;
     }
 
-    return ZERO;
+    return valid;
 }
 
 void print_error(const char *filename, int line_number, const char *msg) {
