@@ -330,7 +330,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
             if (nl) *nl = NULL_CHAR;
         }
 
-        if (line[0] == NULL_CHAR || line[0] == NEWLINE_CHAR) {
+        if (line[0] == NULL_CHAR || line[0] == NEWLINE_CHAR || line[0] == COMMENT_CHAR) {
             /* Skip empty lines */
             continue;
         }

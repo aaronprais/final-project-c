@@ -36,6 +36,8 @@
 #define SEMI_COLON_CHAR ':'
 #define SEMI_COLON_STRING ":"
 
+#define COMMENT_CHAR ';'
+
 #define MAX_LINE_LENGTH 82
 #define MAX_FILENAME 100
 
