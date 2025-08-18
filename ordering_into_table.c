@@ -135,11 +135,25 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             print_error(src_filename, src_line, msg);
             return FALSE;
         }
+        if (operand1 == NULL) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Too few operands for command \"%s\" (expected 1)",
+                     command_names[command]);
+            print_error(src_filename, src_line, msg);
+            return FALSE;
+        }
         if (!add_operand(tbl, operand1, command, 1, (unsigned int)src_line, src_filename))
             return FALSE;
     }
     else if (expected == TWO) {
         if (operand2 == NULL) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Too few operands for command \"%s\" (expected 2)",
+                     command_names[command]);
+            print_error(src_filename, src_line, msg);
+            return FALSE;
+        }
+        if (operand1 == NULL) {
             char msg[128];
             snprintf(msg, sizeof(msg), "Too few operands for command \"%s\" (expected 2)",
                      command_names[command]);
