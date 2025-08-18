@@ -32,5 +32,6 @@ Label* find_label_by_name(const Labels *lbls, const char *name);
 int is_label(char *word);
 void reset_labels_addresses(Labels *lbls, unsigned int offset);
 void print_labels(Labels *lbls);
+int count_label_by_name(const Labels *lbls, const char *name);
 
 #endif //LABELS_H

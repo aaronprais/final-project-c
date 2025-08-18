@@ -82,8 +82,8 @@ int export_entry_file(Labels *lbls, const char *name) {
             char *current_label = lbls->data[i].label;
 
             int j;
-            for (j = i + 1; j < lbls->size; j++) {
-                if (strcmp(lbls->data[j].label, current_label) == 0) {
+            for (j = 0; j < lbls->size; j++) {
+                if (strcmp(lbls->data[j].label, current_label) == 0 && !(lbls->data[j].is_entry)) {
                     char addr_base4[5];
                     to_base4_address(lbls->data[j].decimal_address, addr_base4);
 

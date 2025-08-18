@@ -393,7 +393,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                 char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
                 Label *existing = find_label_by_name(lbls, rest);
 
-                if (existing) {
+                if (existing && (existing->is_entry || count_label_by_name(lbls, rest) > 1)) {
                     char msg[128];
                     /* exact phrasing requested */
                     snprintf(msg, sizeof(msg), "lable alrady exists: \"%s\"", rest ? rest : "(null)");

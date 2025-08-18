@@ -196,3 +196,32 @@ Label* find_label_by_name(const Labels *lbls, const char *name) {
     }
     return temp;
 }
+
+
+int count_label_by_name(const Labels *lbls, const char *name) {
+    if (!lbls || !name) return 0;
+
+    char key[MAX_LABEL_LEN];
+    strncpy(key, name, MAX_LABEL_LEN - 1);
+    key[MAX_LABEL_LEN - 1] = NULL_CHAR;
+
+    /* Normalize key: trim + strip trailing ':' */
+    char *start = key;
+    while (*start && isspace((unsigned char)*start)) start++;
+    char *end = start + strlen(start);
+    while (end > start && isspace((unsigned char)*(end-1))) end--;
+    *end = NULL_CHAR;
+    size_t len = strlen(start);
+    if (len && start[len-1] == SEMI_COLON_CHAR) start[len-1] = NULL_CHAR;
+
+    int count = 0;
+
+    int i;
+    for (i = 0; i < lbls->size; i++) {
+        if (strcmp(lbls->data[i].label, start) == 0) {
+            /* cast away const to match return type; callers should treat as read-only */
+            count++;
+        }
+    }
+    return count;
+}
