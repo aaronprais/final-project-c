@@ -250,12 +250,22 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
     if (command == STR) {
         /* parse chars between quotes as separate bytes */
         int in_quotes = FALSE;
+        int after_quotes = FALSE;
         int i;
         int quote_count = 0;
 
         for (i = 0; operands_copy[i] != NULL_CHAR; i++) {
+
+            if (after_quotes && !iswspace(operands_copy[i])) {
+                print_error(src_filename, src_line, "String after quotes has text");
+            }
+
             if (operands_copy[i] == '"') {
-                in_quotes = !in_quotes;
+                if (in_quotes) {
+                    after_quotes = TRUE;
+                    continue;
+                }
+                in_quotes = TRUE;
                 quote_count++;
                 continue;
             }
