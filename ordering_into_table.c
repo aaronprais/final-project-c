@@ -258,14 +258,16 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
 
             if (after_quotes && !isspace(operands_copy[i])) {
                 print_error(src_filename, src_line, "String after quotes has text");
+                return FALSE;
             }
 
             if (operands_copy[i] == '"') {
                 if (in_quotes) {
                     after_quotes = TRUE;
+                    in_quotes = !in_quotes;
                     continue;
                 }
-                in_quotes = TRUE;
+                in_quotes = !in_quotes;
                 quote_count++;
                 continue;
             }
