@@ -34,6 +34,7 @@
 #define DOT_CHAR '.'
 #define COMMA_STRING ","
 #define SEMI_COLON_CHAR ':'
+#define SEMI_COLON_STRING ":"
 
 #define MAX_LINE_LENGTH 82
 #define MAX_FILENAME 100
@@ -178,9 +179,5 @@ void print_error(const char *filename, int line_number, const char *msg);
 
 /* Forward-declare Labels so we can reference it without including labels.h (to avoid cycles). */
 struct Labels;
-
-/* New: checks whether 'op' is the name of a label that exists in the labels table.
-   Returns TRUE if found, FALSE otherwise. */
-int is_valid_label(const char *op, const struct Labels *lbls);
 
 #endif //UTIL_H

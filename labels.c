@@ -61,31 +61,62 @@ static void normalize_label_name(char *s) {
 
 /* ---------------- API ---------------- */
 
-void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTypes label_type, unsigned int is_entry) {
-    /* Copy and normalize the label text (remove optional trailing ':', trim spaces) */
-    char label_copy[MAX_LABEL_LEN];
-    strncpy(label_copy, label, MAX_LABEL_LEN - 1);
-    label_copy[MAX_LABEL_LEN - 1] = NULL_CHAR;
-    normalize_label_name(label_copy);
+int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTypes label_type,
+                  unsigned int is_entry, int src_line, const char *src_filename) {
+    char raw[MAX_LABEL_LEN + 1];  /* local buffer; +1 for terminator */
+    int i = 0;
 
-    /* Length check after normalization (include offending label) */
-    if (strlen(label_copy) > MAX_LABEL_LEN - 1) {
-        char msg[256];
-        snprintf(msg, sizeof(msg), "Label too long: \"%s\" (max %d)", label_copy, MAX_LABEL_LEN - 1);
-        print_error("SYSTEM", -1, msg);
-        return;
+    if (is_register(label)) {
+        print_error(src_filename, src_line, "Invalid label: cannot be a register name.");
+        return FALSE;
     }
 
-    /* Must start with uppercase (include offending label) */
-    if (label_copy[0] && !isupper((unsigned char)label_copy[0])) {
-        char msg[256];
-        snprintf(msg, sizeof(msg), "Invalid label (must start with uppercase): \"%s\"", label_copy);
-        print_error("SYSTEM", -1, msg);
-        return;
+    /* Copy up to MAX_LABEL_LEN characters (we only care about the first MAX_LABEL_LEN) */
+    while (label[i] != NULL_CHAR && i < MAX_LABEL_LEN) {
+        raw[i] = label[i];
+        i++;
+    }
+    raw[i] = NULL_CHAR;
+
+    /* Trim leading/trailing whitespace */
+    char *start = raw;
+    while (*start && isspace((unsigned char)*start)) start++;
+    char *end = start + (int)strlen(start);
+    while (end > start && isspace((unsigned char)*(end - 1))) end--;
+    *end = NULL_CHAR;
+
+    int len = (int)strlen(start);
+
+    if (len == 0) {
+        print_error(src_filename, src_line, "Invalid label: empty after trimming.");
+        return FALSE;
     }
 
+    /* First char must be alphabetic */
+    if (!isalpha((unsigned char)start[0])) {
+        char msg[256];
+        snprintf(msg, sizeof(msg),
+                 "Invalid label: \"%s\". Label must begin with an alphabetic character.", start);
+        print_error(src_filename, src_line, msg);
+        return FALSE;
+    }
+
+    /* All chars must be alphanumeric */
+    for (i = 0; i < len; i++) {
+        if (!isalnum((unsigned char)start[i])) {
+            char msg[256];
+            snprintf(msg, sizeof(msg),
+                     "Invalid label: \"%s\". Only letters and digits are allowed.", start);
+            print_error(src_filename, src_line, msg);
+            return FALSE;
+        }
+    }
+
+    /* Passed validation -> store (already without ':') */
     ensure_label_capacity(lbls);
-    strncpy(lbls->data[lbls->size].label, label_copy, MAX_LABEL_LEN);
+
+    /* Copy into slot; ensure null-termination according to your layout */
+    strncpy(lbls->data[lbls->size].label, start, MAX_LABEL_LEN);
     lbls->data[lbls->size].label[LABEL_NULL_CHAR_LOCATION] = NULL_CHAR;
 
     lbls->data[lbls->size].decimal_address = ZERO;
@@ -94,7 +125,10 @@ void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTy
     lbls->data[lbls->size].is_entry = is_entry;
 
     lbls->size++;
+    return TRUE;
 }
+
+
 
 Label* get_label(Labels *lbls, int index) {
     if (index < ZERO || index >= lbls->size) {

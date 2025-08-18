@@ -23,7 +23,7 @@ void free_label_table(Labels *lbls);
 void ensure_label_capacity(Labels *lbls);
 
 /* Mutation / lookup */
-void add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTypes label_type, unsigned int is_entry);
+int add_label_row(Labels *lbls, const char *label, int table_row_index, LabelTypes label_type, unsigned int is_entry, int src_line, const char *src_filename);
 Label* get_label(Labels *lbls, int index);
 
 /* New: find a label by its name (ignores an optional trailing ':') */

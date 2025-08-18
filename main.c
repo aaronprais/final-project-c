@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
         fclose(fp);
         if (failed) {
             /* pre-assembly reported an error for this file; skip to next */
+            fprintf(stderr, "Due to error in %s, no .am - .ob - .ent - .ext files created\n", filename);
             continue;
         }
 
@@ -54,6 +55,7 @@ int main(int argc, char *argv[]) {
             /* pre-assembly reported an error for this file; skip to next */
             free_table(tbl);
             free_label_table(lbls);
+            fprintf(stderr, "Due to error in %s, no .ob - .ext - .ent files created\n", filename);
             continue;
         }
 
@@ -61,31 +63,33 @@ int main(int argc, char *argv[]) {
         reset_addresses(tbl, 100);
         reset_labels_addresses(lbls, 100);
 
-        /* Optional debug prints before encoding */
-        printf("===== %s: TABLE BEFORE BINARY ENCODING =====\n", argv[i]);
-        print_table(tbl);
-        printf("------------------------------------------------------------------\n");
-        print_labels(lbls);
 
         /* ---------- Stage 3: translate table → binary using labels ---------- */
         if (!parse_table_to_binary(tbl, lbls, filename)) {
-            printf("Error: failed to translate table to binary for %s\n", argv[i]);
+            fprintf(stderr, "Due to error in %s, no .ob - .ext - .ent files created\n", filename);
             free_table(tbl);
             free_label_table(lbls);
             continue;
-        } else {
-            printf("------------------------------------------------------------------\n");
-            printf("===== %s: TABLE AFTER BINARY ENCODING =====\n", argv[i]);
-            print_table(tbl);
         }
 
-        export_object_file(tbl, argv[i]);
-        export_entry_file(lbls, argv[i]);
-        export_external_file(tbl, lbls, argv[i]);
+        if (!export_object_file(tbl, argv[i])) {
+            fprintf(stderr, "Due to error in %s, no .ob - .ext - .ent files created\n", filename);
+            continue;
+        }
+        if (!export_entry_file(lbls, argv[i])){
+            fprintf(stderr, "ERROR: %s, no .ent - .ext files created\n", filename);
+            continue;
+        }
+        if (!export_external_file(tbl, lbls, argv[i])) {
+            fprintf(stderr, "ERROR: %s, no .ext file created\n", filename);
+            continue;
+        }
 
         /* Cleanup per file (no globals) */
         free_table(tbl);
         free_label_table(lbls);
+
+        fprintf(stdout, "Successfully compiled: %s.as and %s.ob, %s.ent, %s.ext files created\n", argv[i], argv[i], argv[i], argv[i]);
     }
 
     return EXIT_SUCCESS;

@@ -109,7 +109,9 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
             return FALSE;
         }
         /* If existing is .entry, we allow reuse here (code line is not .entry) */
-        add_label_row(lbls, label, tbl->size, CODE, FALSE);
+        if (!add_label_row(lbls, label, tbl->size, CODE, FALSE, src_line, src_filename)) {
+            return FALSE;
+        }
     }
 
     /* master row for the command line (records original source line number) */
@@ -117,15 +119,6 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     if (!check_table_overflow(tbl, src_filename, src_line)) return FALSE;
 
     int expected = command_operands[command];
-
-    if ((expected > 0 && comma_count > expected - 1) || (expected == ZERO && comma_count > 0)) {
-        print_error(src_filename, src_line, "Unexpected extra comma");
-        return FALSE;
-    }
-    if (expected > 1 && comma_count < expected - 1) {
-        print_error(src_filename, src_line, "Missing comma");
-        return FALSE;
-    }
 
     if (expected == ZERO && operand1 != NULL) {
         char msg[128];
@@ -165,6 +158,15 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
         }
     }
 
+    if ((expected > 0 && comma_count > expected - 1) || (expected == ZERO && comma_count > 0)) {
+        print_error(src_filename, src_line, "Unexpected extra comma");
+        return FALSE;
+    }
+    if (expected > 1 && comma_count < expected - 1) {
+        print_error(src_filename, src_line, "Missing comma");
+        return FALSE;
+    }
+
     return TRUE;
 }
 
@@ -185,7 +187,9 @@ int add_data_to_table(Table *tbl, Labels *lbls, char *label, int command,
             return FALSE;
         }
         /* If existing is .entry, we allow reuse here (data directive is not .entry) */
-        add_label_row(lbls, label, tbl->size, DATA, FALSE);
+        if (!add_label_row(lbls, label, tbl->size, DATA, FALSE, src_line, src_filename)) {
+            return FALSE;
+        }
     }
 
     int first = TRUE;
@@ -320,13 +324,61 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
     while (fgets(line, sizeof(line), file)) {
         src_line++;
 
-        char *word = strtok(line, SPLITTING_DELIM);
+        /* -------- Remove trailing newline, if any -------- */
+        {
+            char *nl = strchr(line, '\n');
+            if (nl) *nl = NULL_CHAR;
+        }
+
+        if (line[0] == NULL_CHAR || line[0] == NEWLINE_CHAR) {
+            /* Skip empty lines */
+            continue;
+        }
+        if (line[0] == SEMI_COLON_CHAR) {
+            print_error(src_filename, src_line, "Empty label");
+            error = TRUE;
+        }
+
+        /* -------- Split optional label by first ':' -------- */
+        char label[MAX_LABEL_LEN] = EMPTY_STRING;
+        char *after = line;
+        char *colon = strchr(line, SEMI_COLON_CHAR); /* ':' */
+
+        if (colon) {
+            *colon = NULL_CHAR;           /* terminate label part */
+            after  = colon + 1;           /* rest of the line */
+
+            /* Trim the label part (leading/trailing spaces) */
+            {
+                char *start = line;
+                while (*start && isspace((unsigned char)*start)) start++;
+                char *end = start + (int)strlen(start);
+                while (end > start && isspace((unsigned char)*(end - 1))) end--;
+                *end = NULL_CHAR;
+
+                if (strlen(start) >= MAX_LABEL_LEN) {
+                    char msg[128];
+                    snprintf(msg, sizeof(msg), "Label too long: \"%s\"", start);
+                    print_error(src_filename, src_line, msg);
+                    error = TRUE;
+                }
+
+                /* store label (already without ':') */
+                if (*start) {
+                    strncpy(label, start, MAX_LABEL_LEN - 1);
+                    label[MAX_LABEL_LEN - 1] = NULL_CHAR;
+                }
+            }
+        }
+
+        /* -------- Tokenize the rest of the line for directive/command -------- */
+        char *word = strtok(after, SPLITTING_DELIM);
 
         if (word != NULL) {
             if (strcmp(word, ENTRY) == 0) {
-                char *rest = strtok(NULL, NEW_LINE_STRING);
+                char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
                 Label *existing = find_label_by_name(lbls, rest);
-                /* Duplicate .entry is never allowed; also disallow if the name exists at all. */
+
                 if (existing) {
                     char msg[128];
                     /* exact phrasing requested */
@@ -334,13 +386,15 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                     print_error(src_filename, src_line, msg);
                     error = TRUE;
                 } else {
-                    add_label_row(lbls, rest, ZERO, UNKNOWN, TRUE);
+                    if (!add_label_row(lbls, rest, ZERO, UNKNOWN, TRUE, src_line, src_filename)) {
+                        error = TRUE;  /* fixed: was FALSE */
+                    }
                 }
             }
             else if (strcmp(word, EXTERN) == 0) {
-                char *rest = strtok(NULL, NEW_LINE_STRING);
+                char *rest = strtok(NULL, NEW_LINE_STRING); /* label name (no ':') */
                 Label *existing = find_label_by_name(lbls, rest);
-                /* Allow reuse only if existing is .entry and the new one is NOT .entry (extern). */
+
                 if (existing) {
                     char msg[128];
                     /* exact phrasing requested */
@@ -348,19 +402,16 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
                     print_error(src_filename, src_line, msg);
                     error = TRUE;
                 } else {
-                    add_label_row(lbls, rest, ZERO, EXT, FALSE);
+                    if (!add_label_row(lbls, rest, ZERO, EXT, FALSE, src_line, src_filename)) {
+                        error = TRUE;  /* fixed: was FALSE */
+                    }
                 }
             }
             else {
                 int command = NOT_FOUND;
-                char label[MAX_LABEL_LEN] = EMPTY_STRING;
                 char operands_string[MAX_OPERAND_LEN] = EMPTY_STRING;
 
-                if (is_label(word)) {
-                    strcpy(label, word);
-                    word = strtok(NULL, SPLITTING_DELIM);
-                }
-
+                /* Find command using the (possibly empty) label detected before ':' */
                 command = find_command(word, label);
 
                 if (command == NOT_FOUND) {
@@ -392,10 +443,11 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
 
         /* Early-out if we already overflowed to avoid cascading errors */
         if (tbl->size > MAX_TABLE_ROWS) {
-            /* We already printed the specific overflow error at the point it happened. */
+            /* Specific overflow error should have been printed at point of failure. */
             break;
         }
     }
 
     return error;
 }
+

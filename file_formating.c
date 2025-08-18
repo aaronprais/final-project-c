@@ -4,6 +4,7 @@
 #include <string.h>
 #include "table.h"
 #include "labels.h"
+#include "util.h"
 
 // convert base-4 digit to char
 static char digit_to_char(int d) {
@@ -38,16 +39,15 @@ static void to_base4_code(unsigned int code, char out[6]) {
 
 
 // export the table to a filename.ob
-void export_object_file(Table *tbl, const char *name) {
-    if (!tbl || !name) return;
+int export_object_file(Table *tbl, const char *name) {
+    if (!tbl || !name) return FALSE;
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ob", name);
 
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        perror("Failed to open output file");
-        return;
+        return FALSE;
     }
 
     int i;
@@ -61,19 +61,18 @@ void export_object_file(Table *tbl, const char *name) {
     }
 
     fclose(fp);
-    printf("✅ Object file written to %s\n", filename);
+    return TRUE;
 }
 
-void export_entry_file(Labels *lbls, const char *name) {
-    if (!lbls || !name) return;
+int export_entry_file(Labels *lbls, const char *name) {
+    if (!lbls || !name) return FALSE;
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ent", name);
 
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        perror("Failed to open output file");
-        return;
+        return FALSE;
     }
 
     int i;
@@ -95,19 +94,18 @@ void export_entry_file(Labels *lbls, const char *name) {
     }
 
     fclose(fp);
-    printf("✅ Object file written to %s\n", filename);
+    return TRUE;
 }
 
-void export_external_file(Table *tbl, Labels *lbls, const char *name) {
-    if (!lbls || !name || !tbl) return;
+int export_external_file(Table *tbl, Labels *lbls, const char *name) {
+    if (!lbls || !name || !tbl) return FALSE;
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ext", name);
 
     FILE *fp = fopen(filename, "w");
     if (!fp) {
-        perror("Failed to open output file");
-        return;
+        return FALSE;
     }
 
     int i;
@@ -126,5 +124,5 @@ void export_external_file(Table *tbl, Labels *lbls, const char *name) {
     }
 
     fclose(fp);
-    printf("✅ Object file written to %s\n", filename);
+    return TRUE;
 }

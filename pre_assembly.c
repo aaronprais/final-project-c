@@ -208,14 +208,12 @@ static void handle_macro_definition(const char *filename,
         snprintf(buf, sizeof(buf), "macro name too long (max %d chars)", MAX_LINE_LENGTH - 1);
         print_error(filename, line_number, buf);
         *had_error = TRUE;
-        return;
     }
 
     if (items_read == 2)
     {
         print_error(filename, line_number, "text after macro name is not allowed");
         *had_error = TRUE;
-        return;
     }
 
     if (is_macro_already_defined(mtbl, name))
@@ -224,7 +222,6 @@ static void handle_macro_definition(const char *filename,
         snprintf(buf, sizeof(buf), "macro '%s' already defined", name);
         print_error(filename, line_number, buf);
         *had_error = TRUE;
-        return;
     }
 
     if (is_reserved_macro_name(name))
@@ -233,7 +230,6 @@ static void handle_macro_definition(const char *filename,
         snprintf(buf, sizeof(buf), "macro name '%s' is a reserved word", name);
         print_error(filename, line_number, buf);
         *had_error = TRUE;
-        return;
     }
 
     strcpy(current_macro->name, name);
@@ -278,7 +274,6 @@ for (i = 0; i < mtbl->count; ++i)
             {
                 print_error(filename, line_number, "unexpected text after macro invocation");
                 *had_error = TRUE;
-                return TRUE; /* consume line, mark error */
             }
 
             int j;
@@ -314,7 +309,7 @@ int preprocess_file(FILE *in, FILE *out, const char *filename, MacroTable *mtbl)
 
     if (!mtbl) {
         print_error(filename, 0, "internal error: null MacroTable");
-        return TRUE;
+        return FALSE;
     }
 
     while (fgets(line, MAX_LINE_LENGTH, in))
@@ -417,9 +412,6 @@ int run_pre_assembly(FILE *in, const char *base_filename)
     if (had_error)
     {
         remove(output_filename);
-        char buf[256];
-        snprintf(buf, sizeof(buf), "file '%s' was not created due to errors", output_filename);
-        print_error(base_filename, 0, buf);
     }
     else
     {
