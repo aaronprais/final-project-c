@@ -152,7 +152,7 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     int expected = command_operands[command];
 
     /* validate arity — classic fence-post checks */
-    if (expected == 0 && operand1 != NULL) {
+    if (expected == 0 && operand1 == NULL) {
         char msg[128];
         snprintf(msg, sizeof(msg), "Too many operands for command \"%s\" (expected 0)",
                  command_names[command]);
@@ -452,7 +452,7 @@ int process_file_to_table_and_labels(Table *tbl, Labels *lbls, FILE *file, const
         }
 
         /* -------- Tokenize the rest of the line for directive/command -------- */
-        char *word = strtok(after, SPLITTING_DELIM);
+        char *word = strtok(after, " \t\r\n"); 
 
         if (word != NULL) {
             if (strcmp(word, ENTRY) == 0) {

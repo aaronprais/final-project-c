@@ -56,6 +56,11 @@ int add_label_row(Labels *lbls, const char *label, int table_row_index,
         return FALSE;
     }
 
+    if (find_command(label, "") != NOT_FOUND) {
+        print_error(src_filename, src_line, "Invalid label: cannot be a command name.");
+        return FALSE;
+    }
+
     /* copy string safely up to max length */
     while (label[i] != NULL_CHAR && i < MAX_LABEL_LEN) {
         raw[i] = label[i];
