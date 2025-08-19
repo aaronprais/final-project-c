@@ -59,25 +59,38 @@ for (i = 4; i >= 0; --i) {
  * Format: <addr in base-4> \t <code in base-4>
  */
 int export_object_file(Table *tbl, const char *name) {
-    if (!tbl || !name) return FALSE;
+    if (!tbl || !name) {
+        fprintf(stderr, "%s: Error - no data found for .ob file\n", name);
+        return FALSE;
+    }
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ob", name);
 
     FILE *fp = fopen(filename, "w");
-    if (!fp) return FALSE;
+    if (!fp){
+        fprintf(stderr, "%s: Error - failed to write .ob file\n", name);
+        return FALSE;
+    }
+
+    int written_into_file = FALSE;
 
     int i;
-for (i = 0; i < tbl->size; ++i) {
+    for (i = 0; i < tbl->size; ++i) {
         char addr_base4[5];
         char code_base4[6];
         to_base4_address(tbl->data[i].decimal_address, addr_base4);
         to_base4_code(tbl->data[i].binary_machine_code, code_base4);
 
         fprintf(fp, "%s\t%s\n", addr_base4, code_base4);
+        written_into_file = TRUE;
     }
 
     fclose(fp);
+    if (!written_into_file) {
+        remove(filename);
+        return FALSE;
+    }
     return TRUE;
 }
 
@@ -88,32 +101,45 @@ for (i = 0; i < tbl->size; ++i) {
  * It searches for same label in non-entry context to grab its adress.
  */
 int export_entry_file(Labels *lbls, const char *name) {
-    if (!lbls || !name) return FALSE;
+    if (!lbls || !name){
+        fprintf(stderr, "%s: Error - no data found for .ex file\n", name);
+        return FALSE;
+    }
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ent", name);
 
     FILE *fp = fopen(filename, "w");
-    if (!fp) return FALSE;
+    if (!fp){
+        fprintf(stderr, "%s: Error - failed to write .ent file\n", name);
+        return FALSE;
+    }
+
+    int written_into_file = FALSE;
 
     int i;
-for (i = 0; i < lbls->size; i++) {
+    for (i = 0; i < lbls->size; i++) {
         if (lbls->data[i].is_entry) {
             char *current_label = lbls->data[i].label;
 
             int j;
-for (j = 0; j < lbls->size; j++) {
+            for (j = 0; j < lbls->size; j++) {
                 if (strcmp(lbls->data[j].label, current_label) == 0 &&
                     !(lbls->data[j].is_entry)) {
                     char addr_base4[5];
                     to_base4_address(lbls->data[j].decimal_address, addr_base4);
                     fprintf(fp, "%s\t%s\n", current_label, addr_base4);
+                    written_into_file = TRUE;
                 }
             }
         }
     }
 
     fclose(fp);
+    if (!written_into_file) {
+        remove(filename);
+        return FALSE;
+    }
     return TRUE;
 }
 
@@ -124,16 +150,24 @@ for (j = 0; j < lbls->size; j++) {
  * It scans the table rows that are NOT command-lines (data/operands).
  */
 int export_external_file(Table *tbl, Labels *lbls, const char *name) {
-    if (!lbls || !name || !tbl) return FALSE;
+    if (!lbls || !name || !tbl){
+        fprintf(stderr, "%s: Error - no data found for .ex file\n", name);
+        return FALSE;
+    }
 
     char filename[FILENAME_MAX];
     snprintf(filename, sizeof(filename), "%s.ext", name);
 
     FILE *fp = fopen(filename, "w");
-    if (!fp) return FALSE;
+    if (!fp){
+        fprintf(stderr, "%s: Error - failed to write .ex file\n", name);
+        return FALSE;
+    }
+
+    int written_into_file = FALSE;
 
     int i;
-for (i = 0; i < tbl->size; i++) {
+    for (i = 0; i < tbl->size; i++) {
         if (!tbl->data[i].is_command_line) {
             Label *lbl = find_label_by_name(lbls, tbl->data[i].operands_string);
 
@@ -141,10 +175,15 @@ for (i = 0; i < tbl->size; i++) {
                 char addr_base4[5];
                 to_base4_address(tbl->data[i].decimal_address, addr_base4);
                 fprintf(fp, "%s\t%s\n", lbl->label, addr_base4);
+                written_into_file = TRUE;
             }
         }
     }
 
     fclose(fp);
+    if (!written_into_file) {
+        remove(filename);
+        return FALSE;
+    }
     return TRUE;
 }

@@ -30,7 +30,10 @@ int main(int argc, char *argv[]) {
         fp = fopen(filename, "r");
         if (fp == NULL) {
             /* cant open input file — probably bad path or perms */
-            fprintf(stderr, "Error: cannot open %s\n", filename);
+            fprintf(stderr, "%s: Error - cannot open .as file\n", argv[i]);
+            fprintf(stderr,
+                    "%s: Due to errors no | .ob | .ext | .ent | files created\n",
+                    argv[i]);
             continue; /* process next file (dont crash whole batch) */
         }
 
@@ -39,8 +42,8 @@ int main(int argc, char *argv[]) {
         if (failed) {
             /* pre-assembly reported an error; we skip later stages safely */
             fprintf(stderr,
-                    "Due to error in %s, no .am - .ob - .ent - .ext files created\n",
-                    filename);
+                    "%s: Due to errors no | .ob | .ext | .ent | files created\n",
+                    argv[i]);
             continue;
         }
 
@@ -49,7 +52,10 @@ int main(int argc, char *argv[]) {
         snprintf(filename, MAX_FILENAME, "%s.am", argv[i]);
         fp = fopen(filename, "r");
         if (fp == NULL) {
-            fprintf(stderr, "Error: cannot open %s\n", filename);
+            fprintf(stderr, "%s: Error - cannot open .am file\n", argv[i]);
+            fprintf(stderr,
+                    "%s: Due to errors no | .ob | .ext | .ent | files created\n",
+                    argv[i]);
             continue; /* process next file */
         }
 
@@ -71,8 +77,8 @@ int main(int argc, char *argv[]) {
             free_table(tbl);
             free_label_table(lbls);
             fprintf(stderr,
-                    "Due to error in %s, no .ob - .ext - .ent files created\n",
-                    filename);
+                    "%s: Due to errors no | .ob | .ext | .ent | files created\n",
+                    argv[i]);
             continue;
         }
 
@@ -85,8 +91,8 @@ int main(int argc, char *argv[]) {
         /* resolves symbols and outputs the internal binary representation (kinda cool) */
         if (!parse_table_to_binary(tbl, lbls, filename)) {
             fprintf(stderr,
-                    "Due to error in %s, no .ob - .ext - .ent files created\n",
-                    filename);
+                    "%s: Due to errors no | .ob | .ext | .ent | files created\n",
+                    argv[i]);
             free_table(tbl);
             free_label_table(lbls);
             continue;
@@ -95,23 +101,26 @@ int main(int argc, char *argv[]) {
         /* ---------- Export artifacts (.ob / .ent / .ext) ---------- */
         /* object file (final opcodes + data) */
         if (!export_object_file(tbl, argv[i])) {
-            fprintf(stderr,
-                    "Due to error in %s, no .ob - .ext - .ent files created\n",
-                    filename);
-            /* note: table/labels freed below if we keep going; here we just skip */
-            continue;
+            fprintf(stdout,"%s: .ob file not created\n", argv[i]);
+        }
+        else {
+            fprintf(stdout, "%s: .ob file created\n", argv[i]);
         }
 
         /* entry file (symbols marked as .entry) */
         if (!export_entry_file(lbls, argv[i])) {
-            fprintf(stderr, "ERROR: %s, no .ent - .ext files created\n", filename);
-            continue;
+            fprintf(stdout, "%s: .ent file not created\n", argv[i]);
+        }
+        else {
+            fprintf(stdout, "%s: .ent file created\n", argv[i]);
         }
 
         /* external references file (for .extern usages) */
         if (!export_external_file(tbl, lbls, argv[i])) {
-            fprintf(stderr, "ERROR: %s, no .ext file created\n", filename);
-            continue;
+            fprintf(stdout, "%s: .ext file not created\n", argv[i]);
+        }
+        else {
+            fprintf(stdout, "%s: .ext file created", argv[i]);
         }
 
         /* Cleanup per file (no globals, so leak-free yay) */
@@ -119,9 +128,7 @@ int main(int argc, char *argv[]) {
         free_label_table(lbls);
 
         /* lil success message (kinda verbose but nice for users) */
-        fprintf(stdout,
-                "Successfully compiled: %s.as and %s.ob, %s.ent, %s.ext files created\n",
-                argv[i], argv[i], argv[i], argv[i]);
+        fprintf(stdout,"%s: Successfully compiled\n", argv[i]);
     }
 
     return EXIT_SUCCESS;

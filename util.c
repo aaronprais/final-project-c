@@ -164,5 +164,5 @@ int is_matrix(const char *op) {
 
 /* print error msg to stderr */
 void print_error(const char *filename, int line_number, const char *msg) {
-    fprintf(stderr, "Error: %s at line %d: %s\n", filename, line_number, msg);
+    fprintf(stderr, "%s: Error at line %d: %s\n", filename, line_number, msg);
 }

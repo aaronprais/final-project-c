@@ -375,7 +375,7 @@ int run_pre_assembly(FILE *in, const char *base_filename) {
         return 1;
     }
 
-    printf("Preprocessing file: %s.as\n", base_filename);
+    printf("%s: Starting preprocessing\n", base_filename);
 
     MacroTable mtbl = (MacroTable){0};
     int had_error = preprocess_file(in, out, base_filename, &mtbl);
@@ -383,7 +383,7 @@ int run_pre_assembly(FILE *in, const char *base_filename) {
     if (had_error) {
         remove(output_filename);
     } else {
-        printf("File '%s' created successfully.\n", output_filename);
+        printf("%s: .am file created\n", base_filename);
     }
 
     fclose(out);
