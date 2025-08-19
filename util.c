@@ -22,7 +22,7 @@ for (i = 0; i < NUMBER_OF_COMMANDS; i++) {
     return NOT_FOUND; // nothing was found
 }
 
-/* chek if string is a number (can be double also) */
+/* check if string is an integer number (no double/float allowed) */
 int is_number(const char *s, double *out) {
     if (s == NULL) return FALSE;
 
@@ -35,17 +35,11 @@ int is_number(const char *s, double *out) {
     if (*p == PLUS_CHAR || *p == MINUS_CHAR) p++;
 
     int has_digit = 0;
-    int has_dot = 0;
 
     // loop over chars
     for (; *p; p++) {
         if (isdigit((unsigned char)*p)) {
             has_digit = TRUE;
-        } else if (*p == DOT_CHAR) {
-            if (has_dot) {
-                return FALSE; // more than 1 dot = invalid
-            }
-            has_dot = TRUE;
         } else if (isspace((unsigned char)*p)) {
             // allow space at end but nothing after
             while (*p && isspace((unsigned char)*p)) p++;
@@ -56,14 +50,15 @@ int is_number(const char *s, double *out) {
         }
     }
 
-    if (!has_digit) return FALSE; // must be atleast 1 digit
+    if (!has_digit) return FALSE; // must be at least 1 digit
 
-    // if ok then convert to double
+    // if ok then convert to double (still using strtod)
     if (out) {
-        *out = strtod(s, NULL);
+        *out = strtod(s, NULL); // will parse as integer correctly
     }
     return TRUE;
 }
+
 
 /* chek if its a register (like r0 - r7) */
 int is_register(const char *op) {

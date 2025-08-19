@@ -152,7 +152,7 @@ int add_command_to_table(Table *tbl, Labels *lbls, char *label, int command,
     int expected = command_operands[command];
 
     /* validate arity — classic fence-post checks */
-    if (expected == 0 && operand1 == NULL) {
+    if (expected == 0 && (operand1 != NULL || operand2 != NULL)) {
         char msg[128];
         snprintf(msg, sizeof(msg), "Too many operands for command \"%s\" (expected 0)",
                  command_names[command]);

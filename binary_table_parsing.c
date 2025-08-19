@@ -262,7 +262,7 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
     if (two_register_operands == TRUE) return TRUE;
     if (two_register_operands == NOT_FOUND) {
         print_error(src_filename, (int)row->original_line_number,
-                     "Invalid two-register operand syntax; expected 'rX, rY' with X and Y in 0..7");
+                     "Invalid two-register operands, use r0 to r7");
         return FALSE;
     }
 
@@ -274,7 +274,7 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
         }
         unsigned int regs_word = encode_matrix_regs(br);
         if (!regs_word) {
-            error_at_row(src_filename, row, "Invalid matrix register pattern; expected [rX][rY]");
+            error_at_row(src_filename, row, "Invalid matrix register pattern; expected [rX][rY], r0 to r7");
             return FALSE;
         }
         row->binary_machine_code = regs_word & TEN_BIT_MASK;
@@ -284,7 +284,7 @@ int encode_operand_row(Row *row, Labels *labels, const char *src_filename)
     if (is_immediate(operand)) {
         double val = 0.0;
         if (!is_number(operand + 1, &val)) {
-            print_error(src_filename, (int)row->original_line_number,"Invalid immediate operand; expected # followed by a number");
+            print_error(src_filename, (int)row->original_line_number,"Invalid immediate operand; expected # followed by a whole number");
             return FALSE;
         }
         unsigned int payload = (unsigned int)((int)val & 0xFF);
